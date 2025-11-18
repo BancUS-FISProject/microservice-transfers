@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: ms_accounts_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+  accounts:
+    build: .
+    image: microservice-accounts:local
+    container_name: ms_accounts_api
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_CONNECTION_STRING=mongodb://mongo:27017/accounts_db
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
