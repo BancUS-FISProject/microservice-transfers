@@ -1,6 +1,6 @@
 # Contenedor generado
 
-docker pull alvvigsua/microservice-accounts:latest
+docker pull alvvigsua/microservice-transfers:latest
 
 # Estructura del proyecto
 
@@ -24,14 +24,14 @@ service_name/
 ├── README.md                     # Documentación del microservicio
 │
 └── src/
-    └── accounts_service/
+    └── transfers_service/
         ├── __init__.py
         │
         ├── api/                  # 1. Capa de API (HTTP)
         │   ├── __init__.py
         │   ├── v1/               # Versionado /v1/
         │   │   ├── __init__.py
-        │   │   └── accounts_blueprint.py  # Blueprint que contiene los endpoints de un recurso
+        │   │   └── transactions_blueprint.py  # Blueprint que contiene los endpoints de un recurso
         │   ├── auth.py           # Autenticaciones
         │
         ├── core/                 # 2. Configuración

@@ -1,16 +1,15 @@
 from quart import Quart
 from quart_schema import QuartSchema, Tag
 
-from .core.config import settings
 from .core import extensions as ext
+from .core.config import settings
 
 from logging import getLogger, Formatter, StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from .utils.LoggerColorFormatter import ColorFormatter
 
-from .api.v1.Accounts_blueprint import bp as accounts_bp_v1
+from .api.v1.Transactions_blueprint import bp as transactions_bp_v1
 
-## Logger configuration ##
 logger = getLogger()
 logger.setLevel(settings.LOG_LEVEL)
 
@@ -38,21 +37,16 @@ logger.addHandler(console_handler)
 
 logger.propagate = False
 
-## Logger configuration ##
 
 def create_app():
-    
-    app = Quart("Python Template")
-    
-    # Load settings
+    app = Quart("Transfers Service")
+
     app.config.from_object(settings)
-    logger.info("Settings loaded.")
-    
-    # Load blueprints.
-    app.register_blueprint(accounts_bp_v1)
-    logger.info("Routes registered")
-    
-    # Open API Specification
+    logger.info("Settings loaded for transfers.")
+
+    app.register_blueprint(transactions_bp_v1)
+    logger.info("Transfers routes registered")
+
     schema = QuartSchema()
     schema.tags = [
         Tag(name="v1", description="API version 1"),
@@ -60,30 +54,22 @@ def create_app():
     schema.openapi_path = "/api/openapi.json"
     schema.swagger_ui_path = "/api/docs"
     schema.init_app(app)
-    # Open API Specification
-    
-    # Set up everything before serving the service
+
     @app.before_serving
     async def startup():
-        logger.info("Service is starting up...")
-        
-        # Database
+        logger.info("Transfers service is starting up...")
         try:
             await ext.init_db_client()
-            
         except Exception as e:
             logger.error("Database connection failed. Shutting down...")
             logger.debug(e)
             raise e
-        logger.info("Service started successfully")
-    
-    # Release all resources before shutting down
+        logger.info("Transfers service started successfully")
+
     @app.after_serving
     async def shutdown():
-        logger.info("Service is shutting down...")
-        
+        logger.info("Transfers service is shutting down...")
         ext.close_db_client()
-        
-        logger.info("Service shut down complete.")
-    
+        logger.info("Transfers service shut down complete.")
+
     return app
