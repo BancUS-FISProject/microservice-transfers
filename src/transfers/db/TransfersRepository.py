@@ -9,7 +9,6 @@ class TransfersRepository:
         self.collection = db["transactions"]
 
     async def insert_transaction(self, data: dict) -> dict:
-        # data should be a dict serializable to BSON
         result = await self.collection.insert_one(data)
         created_doc = await self.collection.find_one({"_id": result.inserted_id})
         if created_doc:
@@ -57,3 +56,18 @@ class TransfersRepository:
             return None
         await self.collection.update_one({"_id": _id}, {"$set": {"status": status}})
         return await self.find_transaction_by_id(id_str)
+
+    async def delete_transaction(self, id_str: str) -> dict | None:
+        try:
+            _id = ObjectId(id_str)
+        except Exception:
+            return None
+
+        doc = await self.collection.find_one({"_id": _id})
+        if not doc:
+            return None
+
+        doc["id"] = str(doc.pop("_id"))
+
+        await self.collection.delete_one({"_id": _id})
+        return doc

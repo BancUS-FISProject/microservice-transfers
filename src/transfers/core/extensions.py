@@ -32,7 +32,7 @@ async def init_db_client():
     
     
     logger.info("Checking collections...")
-    required_collections = ["transactions"]         # Collections to be used further.
+    required_collections = ["transactions"]
     
     try:
         existing_collections = await db.list_collection_names()

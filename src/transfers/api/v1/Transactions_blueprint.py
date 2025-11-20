@@ -25,9 +25,7 @@ async def create_transaction(data: TransactionCreate):
     if res.get("status") == "completed":
         return res["transaction"], 202
     else:
-        # failed cases return 400
         return jsonify(res), 400
-
 
 @bp.get("/<string:id>")
 async def get_transaction(id: str):
@@ -37,7 +35,6 @@ async def get_transaction(id: str):
         abort(404, description="Transaction not found")
     return res, 200
 
-
 @bp.get("/user/<string:id>")
 async def get_transactions_by_user(id: str):
     service = TransferService()
@@ -45,7 +42,6 @@ async def get_transactions_by_user(id: str):
     if not res:
         abort(404, description="No transactions found for user")
     return res, 200
-
 
 @bp.get("/user/<string:id>/sent")
 async def get_transactions_sent(id: str):
@@ -55,7 +51,6 @@ async def get_transactions_sent(id: str):
         abort(404, description="No sent transactions found for user")
     return res, 200
 
-
 @bp.get("/user/<string:id>/received")
 async def get_transactions_received(id: str):
     service = TransferService()
@@ -64,7 +59,6 @@ async def get_transactions_received(id: str):
         abort(404, description="No received transactions found for user")
     return res, 200
 
-
 @bp.patch("/<string:id>")
 async def revert_transaction(id: str):
     service = TransferService()
@@ -72,6 +66,18 @@ async def revert_transaction(id: str):
     if res is None:
         abort(404, description="Transaction not found")
     if res.get("status") == "reverted":
+        return res["transaction"], 200
+    else:
+        return jsonify(res), 400
+
+@bp.delete("/<string:id>")
+async def delete_transaction(id: str):
+    service = TransferService()
+    res = await service.delete_transaction(id)
+    if res is None:
+        abort(404, description="Transaction not found")
+
+    if res.get("status") == "deleted":
         return res["transaction"], 200
     else:
         return jsonify(res), 400

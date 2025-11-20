@@ -2,11 +2,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Default settings
     MONGO_CONNECTION_STRING: str = "mongodb://localhost:27017"
     MONGO_DATABASE_NAME: str = "transactions_db"
 
-    # URL base del servicio de accounts (puede ser sobreescrito por entorno)
+    # URL base del servicio de accounts (puede ser sobreescrito por entorno y debe lanzarse el servicio de accounts para poder acceder)
     ACCOUNTS_SERVICE_URL: str = "http://host.docker.internal:8000"
 
     LOG_LEVEL: str = "INFO"
