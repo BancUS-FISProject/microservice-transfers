@@ -81,3 +81,21 @@ async def delete_transaction(id: str):
         return res["transaction"], 200
     else:
         return jsonify(res), 400
+
+
+@bp.put("/<string:id>/status")
+async def put_status(id: str):
+    payload = await request.get_json(silent=True) or {}
+    new_status = payload.get("status")
+    if not new_status:
+        abort(400, description="Missing 'status' in request body")
+
+    service = TransferService()
+    res = await service.update_status(id, new_status)
+    if res is None:
+        abort(404, description="Transaction not found")
+
+    if res.get("status") == "updated":
+        return res["transaction"], 200
+    else:
+        return jsonify(res), 400

@@ -111,3 +111,29 @@ class TransferService:
             return {"status": "failed", "reason": "delete_failed", "transaction": tx}
 
         return {"status": "deleted", "transaction": deleted}
+
+    async def update_status(self, id_str: str, new_status: str) -> dict | None:
+        tx = await self.repo.find_transaction_by_id(id_str)
+        if not tx:
+            return None
+
+        current = tx.get("status")
+        if current is None:
+            current = "pending"
+
+        new_status = str(new_status)
+
+        allowed_transitions = {
+            "pending": {"completed", "failed"},
+            "failed": {"completed", "pending"},
+            "completed": {"reverted"},
+            "reverted": set(),
+        }
+
+        allowed = allowed_transitions.get(current, {"completed", "failed", "reverted"})
+
+        if new_status not in allowed:
+            return {"status": "failed", "reason": "invalid_transition", "from": current, "to": new_status}
+
+        updated = await self.repo.update_transaction_status(id_str, new_status)
+        return {"status": "updated", "transaction": updated}
