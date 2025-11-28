@@ -24,6 +24,8 @@ async def create_transaction(data: TransactionCreate):
 
     if res.get("status") == "completed":
         return res["transaction"], 202
+    elif res.get("reason") == "service_unavailable":
+        return jsonify(res), 503
     else:
         return jsonify(res), 400
 
@@ -67,6 +69,8 @@ async def revert_transaction(id: str):
         abort(404, description="Transaction not found")
     if res.get("status") == "reverted":
         return res["transaction"], 200
+    elif res.get("reason") == "service_unavailable":
+        return jsonify(res), 503
     else:
         return jsonify(res), 400
 

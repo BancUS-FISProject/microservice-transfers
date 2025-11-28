@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     LOG_FILE: str = "log.txt"
     LOG_BACKUP_COUNT: int = 7
 
+    BREAKER_FAILS: int = 5
+    BREAKER_TIMEOUT: int = 60
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -6,8 +6,15 @@ from ..core import extensions as ext
 from ..core.config import settings
 from logging import getLogger
 import httpx
+from datetime import timedelta
+from aiobreaker import CircuitBreaker, CircuitBreakerError
 
 logger = getLogger(__name__)
+
+cards_breaker = CircuitBreaker(
+    fail_max=settings.BREAKER_FAILS,
+    timeout_duration=timedelta(seconds=settings.BREAKER_TIMEOUT)
+)
 
 
 class TransferService:
@@ -30,28 +37,40 @@ class TransferService:
         inserted = await self.repo.insert_transaction(tx_doc)
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            debit_url = f"{self.accounts_url}/v1/accounts/operation/{data.sender}"
-            resp = await client.patch(debit_url, json={"balance": -int(data.quantity)})
-            if resp.status_code == 403:
-                await self.repo.update_transaction_status(inserted["id"], "failed")
-                return {"status": "failed", "reason": "insufficient_funds", "transaction": inserted}
-            if resp.status_code == 404:
-                await self.repo.update_transaction_status(inserted["id"], "failed")
-                return {"status": "failed", "reason": "sender_not_found", "transaction": inserted}
-            if resp.status_code >= 400:
-                await self.repo.update_transaction_status(inserted["id"], "failed")
-                return {"status": "failed", "reason": "debit_error", "transaction": inserted}
+            try:
+                debit_url = f"{self.accounts_url}/v1/accounts/operation/{data.sender}"
+                resp = await cards_breaker.call_async(client.patch, debit_url, json={"balance": -int(data.quantity)})
+                
+                if resp.status_code == 403:
+                    await self.repo.update_transaction_status(inserted["id"], "failed")
+                    return {"status": "failed", "reason": "insufficient_funds", "transaction": inserted}
+                if resp.status_code == 404:
+                    await self.repo.update_transaction_status(inserted["id"], "failed")
+                    return {"status": "failed", "reason": "sender_not_found", "transaction": inserted}
+                if resp.status_code >= 400:
+                    await self.repo.update_transaction_status(inserted["id"], "failed")
+                    return {"status": "failed", "reason": "debit_error", "transaction": inserted}
 
-            credit_url = f"{self.accounts_url}/v1/accounts/operation/{data.receiver}"
-            resp2 = await client.patch(credit_url, json={"balance": int(data.quantity)})
-            if resp2.status_code == 404:
-                await client.patch(debit_url, json={"balance": int(data.quantity)})
+                credit_url = f"{self.accounts_url}/v1/accounts/operation/{data.receiver}"
+                resp2 = await cards_breaker.call_async(client.patch, credit_url, json={"balance": int(data.quantity)})
+                
+                if resp2.status_code == 404:
+                    await cards_breaker.call_async(client.patch, debit_url, json={"balance": int(data.quantity)})
+                    await self.repo.update_transaction_status(inserted["id"], "failed")
+                    return {"status": "failed", "reason": "receiver_not_found", "transaction": inserted}
+                if resp2.status_code >= 400:
+                    await cards_breaker.call_async(client.patch, debit_url, json={"balance": int(data.quantity)})
+                    await self.repo.update_transaction_status(inserted["id"], "failed")
+                    return {"status": "failed", "reason": "credit_error", "transaction": inserted}
+
+            except CircuitBreakerError:
+                logger.warning("Circuit Breaker Open: Skipping transaction creation")
                 await self.repo.update_transaction_status(inserted["id"], "failed")
-                return {"status": "failed", "reason": "receiver_not_found", "transaction": inserted}
-            if resp2.status_code >= 400:
-                await client.patch(debit_url, json={"balance": int(data.quantity)})
+                return {"status": "failed", "reason": "service_unavailable", "transaction": inserted}
+            except (httpx.RequestError, TimeoutError) as e:
+                logger.error(f"Connection failed: {e}")
                 await self.repo.update_transaction_status(inserted["id"], "failed")
-                return {"status": "failed", "reason": "credit_error", "transaction": inserted}
+                return {"status": "failed", "reason": "connection_error", "transaction": inserted}
 
         updated = await self.repo.update_transaction_status(inserted["id"], "completed")
         return {"status": "completed", "transaction": updated}
@@ -80,18 +99,26 @@ class TransferService:
         quantity = int(tx.get("quantity"))
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            debit_url = f"{self.accounts_url}/v1/accounts/operation/{receiver}"
-            resp = await client.patch(debit_url, json={"balance": -quantity})
-            if resp.status_code == 403:
-                return {"status": "failed", "reason": "receiver_insufficient_funds", "transaction": tx}
-            if resp.status_code >= 400:
-                return {"status": "failed", "reason": "debit_receiver_error", "transaction": tx}
+            try:
+                debit_url = f"{self.accounts_url}/v1/accounts/operation/{receiver}"
+                resp = await cards_breaker.call_async(client.patch, debit_url, json={"balance": -quantity})
+                if resp.status_code == 403:
+                    return {"status": "failed", "reason": "receiver_insufficient_funds", "transaction": tx}
+                if resp.status_code >= 400:
+                    return {"status": "failed", "reason": "debit_receiver_error", "transaction": tx}
 
-            credit_url = f"{self.accounts_url}/v1/accounts/operation/{sender}"
-            resp2 = await client.patch(credit_url, json={"balance": quantity})
-            if resp2.status_code >= 400:
-                await client.patch(debit_url, json={"balance": quantity})
-                return {"status": "failed", "reason": "credit_sender_error", "transaction": tx}
+                credit_url = f"{self.accounts_url}/v1/accounts/operation/{sender}"
+                resp2 = await cards_breaker.call_async(client.patch, credit_url, json={"balance": quantity})
+                if resp2.status_code >= 400:
+                    await cards_breaker.call_async(client.patch, debit_url, json={"balance": quantity})
+                    return {"status": "failed", "reason": "credit_sender_error", "transaction": tx}
+            
+            except CircuitBreakerError:
+                logger.warning("Circuit Breaker Open: Skipping transaction reversion")
+                return {"status": "failed", "reason": "service_unavailable", "transaction": tx}
+            except (httpx.RequestError, TimeoutError) as e:
+                logger.error(f"Connection failed during revert: {e}")
+                return {"status": "failed", "reason": "connection_error", "transaction": tx}
 
         updated = await self.repo.update_transaction_status(id_str, "reverted")
         return {"status": "reverted", "transaction": updated}
