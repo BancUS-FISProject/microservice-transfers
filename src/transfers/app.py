@@ -56,6 +56,8 @@ def create_app():
     schema.swagger_ui_path = "/api/docs"
     schema.init_app(app)
 
+    from .middleware.RateLimiter import RateLimiter
+    RateLimiter(app, limit=50, window=60)
 
     @app.before_serving
     async def startup():
