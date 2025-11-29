@@ -32,12 +32,18 @@ class ServiceClient:
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 http_method = getattr(client, method.lower())
+                kwargs = {}
+                if json is not None:
+                    kwargs['json'] = json
+                if params is not None:
+                    kwargs['params'] = params
+                if headers is not None:
+                    kwargs['headers'] = headers
+
                 return await self.breaker.call_async(
                     http_method,
                     url,
-                    json=json,
-                    params=params,
-                    headers=headers,
+                    **kwargs
                 )
             except Exception as exc:
                 logger.error(f"HTTP {method.upper()} request to {url} failed: {exc}")
@@ -47,9 +53,21 @@ class ServiceClient:
         return await self.request("PATCH", path, json=json, headers=headers)
 
     async def debit_account(self, iban: str, amount: int) -> httpx.Response:
-        """Debit amount from the specified account."""
         return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": -amount})
 
     async def credit_account(self, iban: str, amount: int) -> httpx.Response:
-        """Credit amount to the specified account."""
         return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": amount})
+
+    async def get_account(self, iban: str) -> httpx.Response:
+        return await self.request("GET", f"/v1/accounts/{iban}")
+
+    async def get_gmt_time(self) -> str | None:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get("https://timeapi.io/api/Time/current/zone?timeZone=UTC")
+                logger.info(f"GMT Time API Resp: {resp.status_code} - {resp.text}")
+                if resp.status_code == 200:
+                    return resp.json().get("dateTime")
+        except Exception as e:
+            logger.error(f"Failed to fetch GMT time: {e}")
+        return None

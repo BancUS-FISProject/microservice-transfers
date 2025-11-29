@@ -40,7 +40,9 @@ logger.propagate = False
 
 
 def create_app():
+    from quart_cors import cors
     app = Quart("Transfers Service")
+    app = cors(app, allow_origin="*")
 
     app.config.from_object(settings)
     logger.info("Settings loaded for transfers.")

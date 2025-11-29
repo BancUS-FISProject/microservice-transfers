@@ -10,7 +10,6 @@ from ..db.RedisCachedTransfersRepository import RedisCachedTransfersRepository
 
 logger = getLogger(__name__)
 
-
 from ..core import extensions
 
 class TransferService:
@@ -31,10 +30,30 @@ class TransferService:
         if data.sender == data.receiver:
             raise ValueError("Sender and receiver must be different")
 
+        sender_balance = None
+        receiver_balance = None
+        try:
+            sender_resp = await self.client.get_account(data.sender)
+            logger.info(f"Sender account resp: {sender_resp.status_code} - {sender_resp.text}")
+            if sender_resp.status_code == 200:
+                sender_balance = sender_resp.json().get("balance")
+                
+            receiver_resp = await self.client.get_account(data.receiver)
+            logger.info(f"Receiver account resp: {receiver_resp.status_code} - {receiver_resp.text}")
+            if receiver_resp.status_code == 200:
+                receiver_balance = receiver_resp.json().get("balance")
+        except Exception as e:
+            logger.error(f"Error fetching account details: {e}")
+
+        gmt_time = await self.client.get_gmt_time()
+
         tx = TransactionBase(
             sender=data.sender,
             receiver=data.receiver,
             quantity=data.quantity,
+            sender_balance=sender_balance,
+            receiver_balance=receiver_balance,
+            gmt_time=gmt_time
         )
         tx_doc = tx.model_dump(by_alias=True)
         inserted = await self.repo.insert_transaction(tx_doc)
@@ -163,3 +182,5 @@ class TransferService:
 
         updated = await self.repo.update_transaction_status(id_str, new_status)
         return {"status": "updated", "transaction": updated}
+
+
