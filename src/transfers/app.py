@@ -7,6 +7,7 @@ from .core.config import settings
 from logging import getLogger, Formatter, StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from .utils.LoggerColorFormatter import ColorFormatter
+import redis.asyncio as redis
 
 from .api.v1.Transactions_blueprint import bp as transactions_bp_v1
 
@@ -55,13 +56,23 @@ def create_app():
     schema.swagger_ui_path = "/api/docs"
     schema.init_app(app)
 
+
     @app.before_serving
     async def startup():
         logger.info("Transfers service is starting up...")
         try:
             await ext.init_db_client()
+            
+            app.redis_client = redis.Redis(
+                host=settings.REDIS_HOST, 
+                port=settings.REDIS_PORT, 
+                decode_responses=True
+            )
+            await app.redis_client.ping()
+            logger.info("Connected to Redis")
+            
         except Exception as e:
-            logger.error("Database connection failed. Shutting down...")
+            logger.error("Startup failed. Shutting down...")
             logger.debug(e)
             raise e
         logger.info("Transfers service started successfully")
@@ -70,6 +81,9 @@ def create_app():
     async def shutdown():
         logger.info("Transfers service is shutting down...")
         ext.close_db_client()
+        if hasattr(app, 'redis_client'):
+            await app.redis_client.close()
+            logger.info("Redis connection closed")
         logger.info("Transfers service shut down complete.")
 
     return app
