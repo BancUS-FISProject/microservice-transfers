@@ -1,4 +1,4 @@
-from quart import Blueprint, request, abort, jsonify
+from quart import Blueprint, request, abort, jsonify, current_app
 from quart_schema import validate_request, validate_response, tag
 
 from ...models.Transactions import TransactionCreate, TransactionView
@@ -16,7 +16,7 @@ bp = Blueprint("transfers_v1", __name__, url_prefix="/v1/transactions")
 @bp.post("/")
 @validate_request(TransactionCreate)
 async def create_transaction(data: TransactionCreate):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     try:
         res = await service.create_transaction(data)
     except ValueError as e:
@@ -24,12 +24,14 @@ async def create_transaction(data: TransactionCreate):
 
     if res.get("status") == "completed":
         return res["transaction"], 202
+    elif res.get("reason") == "service_unavailable":
+        return jsonify(res), 503
     else:
         return jsonify(res), 400
 
 @bp.get("/<string:id>")
 async def get_transaction(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.get_transaction(id)
     if not res:
         abort(404, description="Transaction not found")
@@ -37,7 +39,7 @@ async def get_transaction(id: str):
 
 @bp.get("/user/<string:id>")
 async def get_transactions_by_user(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.get_transactions_by_user(id)
     if not res:
         abort(404, description="No transactions found for user")
@@ -45,7 +47,7 @@ async def get_transactions_by_user(id: str):
 
 @bp.get("/user/<string:id>/sent")
 async def get_transactions_sent(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.get_transactions_sent_by_user(id)
     if not res:
         abort(404, description="No sent transactions found for user")
@@ -53,7 +55,7 @@ async def get_transactions_sent(id: str):
 
 @bp.get("/user/<string:id>/received")
 async def get_transactions_received(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.get_transactions_received_by_user(id)
     if not res:
         abort(404, description="No received transactions found for user")
@@ -61,18 +63,20 @@ async def get_transactions_received(id: str):
 
 @bp.patch("/<string:id>")
 async def revert_transaction(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.revert_transaction(id)
     if res is None:
         abort(404, description="Transaction not found")
     if res.get("status") == "reverted":
         return res["transaction"], 200
+    elif res.get("reason") == "service_unavailable":
+        return jsonify(res), 503
     else:
         return jsonify(res), 400
 
 @bp.delete("/<string:id>")
 async def delete_transaction(id: str):
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.delete_transaction(id)
     if res is None:
         abort(404, description="Transaction not found")
@@ -90,7 +94,7 @@ async def put_status(id: str):
     if not new_status:
         abort(400, description="Missing 'status' in request body")
 
-    service = TransferService()
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.update_status(id, new_status)
     if res is None:
         abort(404, description="Transaction not found")

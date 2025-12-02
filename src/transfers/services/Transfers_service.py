@@ -1,19 +1,28 @@
-from ..db.TransfersRepository import TransfersRepository
-from ..models.Transactions import TransactionCreate
-from ..models.Transactions import TransactionBase
-from ..models.Transactions import TransactionView
-from ..core import extensions as ext
-from ..core.config import settings
 from logging import getLogger
 import httpx
+from aiobreaker import CircuitBreakerError
+
+from ..core.config import settings
+from ..clients.ServiceClient import ServiceClient
+from ..models.Transactions import TransactionCreate, TransactionBase
+from ..db.TransfersRepository import TransfersRepository
+from ..db.RedisCachedTransfersRepository import RedisCachedTransfersRepository
 
 logger = getLogger(__name__)
 
+from ..core import extensions
 
 class TransferService:
-    def __init__(self, repository: TransfersRepository | None = None):
-        self.repo = repository or TransfersRepository(ext.db)
-        self.accounts_url = settings.ACCOUNTS_SERVICE_URL.rstrip("/")
+    def __init__(self, redis_client=None, repository=None, client=None):
+        if repository:
+            self.repo = repository
+        elif redis_client:
+            self.repo = RedisCachedTransfersRepository(extensions.db, redis_client)
+        else:
+            self.repo = TransfersRepository(extensions.db)
+            
+        self.client = client or ServiceClient(settings.ACCOUNTS_SERVICE_URL)
+        self.redis_client = redis_client
 
     async def create_transaction(self, data: TransactionCreate) -> dict:
         if data.quantity <= 0:
@@ -21,17 +30,37 @@ class TransferService:
         if data.sender == data.receiver:
             raise ValueError("Sender and receiver must be different")
 
+        sender_balance = None
+        receiver_balance = None
+        try:
+            sender_resp = await self.client.get_account(data.sender)
+            logger.info(f"Sender account resp: {sender_resp.status_code} - {sender_resp.text}")
+            if sender_resp.status_code == 200:
+                sender_balance = sender_resp.json().get("balance")
+                
+            receiver_resp = await self.client.get_account(data.receiver)
+            logger.info(f"Receiver account resp: {receiver_resp.status_code} - {receiver_resp.text}")
+            if receiver_resp.status_code == 200:
+                receiver_balance = receiver_resp.json().get("balance")
+        except Exception as e:
+            logger.error(f"Error fetching account details: {e}")
+
+        gmt_time = await self.client.get_gmt_time()
+
         tx = TransactionBase(
             sender=data.sender,
             receiver=data.receiver,
             quantity=data.quantity,
+            sender_balance=sender_balance,
+            receiver_balance=receiver_balance,
+            gmt_time=gmt_time
         )
         tx_doc = tx.model_dump(by_alias=True)
         inserted = await self.repo.insert_transaction(tx_doc)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            debit_url = f"{self.accounts_url}/v1/accounts/operation/{data.sender}"
-            resp = await client.patch(debit_url, json={"balance": -int(data.quantity)})
+        try:
+            resp = await self.client.debit_account(data.sender, int(data.quantity))
+            
             if resp.status_code == 403:
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "insufficient_funds", "transaction": inserted}
@@ -42,16 +71,25 @@ class TransferService:
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "debit_error", "transaction": inserted}
 
-            credit_url = f"{self.accounts_url}/v1/accounts/operation/{data.receiver}"
-            resp2 = await client.patch(credit_url, json={"balance": int(data.quantity)})
+            resp2 = await self.client.credit_account(data.receiver, int(data.quantity))
+            
             if resp2.status_code == 404:
-                await client.patch(debit_url, json={"balance": int(data.quantity)})
+                await self.client.credit_account(data.sender, int(data.quantity))
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "receiver_not_found", "transaction": inserted}
             if resp2.status_code >= 400:
-                await client.patch(debit_url, json={"balance": int(data.quantity)})
+                await self.client.credit_account(data.sender, int(data.quantity))
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "credit_error", "transaction": inserted}
+
+        except CircuitBreakerError:
+            logger.warning("Circuit Breaker Open: Skipping transaction creation")
+            await self.repo.update_transaction_status(inserted["id"], "failed")
+            return {"status": "failed", "reason": "service_unavailable", "transaction": inserted}
+        except (httpx.RequestError, TimeoutError) as e:
+            logger.error(f"Connection failed: {e}")
+            await self.repo.update_transaction_status(inserted["id"], "failed")
+            return {"status": "failed", "reason": "connection_error", "transaction": inserted}
 
         updated = await self.repo.update_transaction_status(inserted["id"], "completed")
         return {"status": "completed", "transaction": updated}
@@ -79,19 +117,26 @@ class TransferService:
         receiver = tx.get("receiver")
         quantity = int(tx.get("quantity"))
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            debit_url = f"{self.accounts_url}/v1/accounts/operation/{receiver}"
-            resp = await client.patch(debit_url, json={"balance": -quantity})
+        try:
+            resp = await self.client.debit_account(receiver, quantity)
+            
             if resp.status_code == 403:
                 return {"status": "failed", "reason": "receiver_insufficient_funds", "transaction": tx}
             if resp.status_code >= 400:
                 return {"status": "failed", "reason": "debit_receiver_error", "transaction": tx}
 
-            credit_url = f"{self.accounts_url}/v1/accounts/operation/{sender}"
-            resp2 = await client.patch(credit_url, json={"balance": quantity})
+            resp2 = await self.client.credit_account(sender, quantity)
+            
             if resp2.status_code >= 400:
-                await client.patch(debit_url, json={"balance": quantity})
+                await self.client.credit_account(receiver, quantity)
                 return {"status": "failed", "reason": "credit_sender_error", "transaction": tx}
+        
+        except CircuitBreakerError:
+            logger.warning("Circuit Breaker Open: Skipping transaction reversion")
+            return {"status": "failed", "reason": "service_unavailable", "transaction": tx}
+        except (httpx.RequestError, TimeoutError) as e:
+            logger.error(f"Connection failed during revert: {e}")
+            return {"status": "failed", "reason": "connection_error", "transaction": tx}
 
         updated = await self.repo.update_transaction_status(id_str, "reverted")
         return {"status": "reverted", "transaction": updated}
@@ -137,3 +182,5 @@ class TransferService:
 
         updated = await self.repo.update_transaction_status(id_str, new_status)
         return {"status": "updated", "transaction": updated}
+
+

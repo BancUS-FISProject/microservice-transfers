@@ -14,14 +14,24 @@ services:
     container_name: ms_transfers_api
     depends_on:
       - mongo
+      - redis
     environment:
       - MONGO_CONNECTION_STRING=mongodb://mongo:27017
       - MONGO_DATABASE_NAME=transactions_db
       - ACCOUNTS_SERVICE_URL=http://host.docker.internal:8000
-    # runs transfers app from the same image but overriding the command
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     command: uvicorn src.transfers.app:create_app --factory --host 0.0.0.0 --port 8000
     ports:
       - "8001:8000"
     restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: ms_transfers_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
 volumes:
   mongo_data:

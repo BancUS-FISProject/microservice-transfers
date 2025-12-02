@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     LOG_FILE: str = "log.txt"
     LOG_BACKUP_COUNT: int = 7
 
+    BREAKER_FAILS: int = 5
+    BREAKER_TIMEOUT: int = 60
+
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    CACHE_TTL: int = 3600
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
