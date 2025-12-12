@@ -19,3 +19,10 @@ class TransactionCreate(BaseModel):
 
 class TransactionView(TransactionBase):
     id: Optional[str] = None
+
+class ErrorResponse(BaseModel):
+    error: str
+    status: str
+
+class StatusUpdateRequest(BaseModel):
+    status: str
