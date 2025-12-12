@@ -164,6 +164,11 @@ async def put_status(id: str, data: StatusUpdateRequest):
     Estados válidos: pending, completed, failed, reverted.
     """
     new_status = data.status
+async def put_status(id: str):
+    payload = await request.get_json(silent=True) or {}
+    new_status = payload.get("status")
+    if not new_status:
+        abort(400, description="Missing 'status' in request body")
 
     service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.update_status(id, new_status)
