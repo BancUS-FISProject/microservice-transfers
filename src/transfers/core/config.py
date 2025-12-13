@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     CACHE_TTL: int = 3600
 
+    # Throttling Configuration
+    THROTTLE_CPU_WARNING: float = 70.0
+    THROTTLE_CPU_CRITICAL: float = 85.0
+    THROTTLE_MEMORY_WARNING: float = 75.0
+    THROTTLE_MEMORY_CRITICAL: float = 90.0
+    THROTTLE_MAX_CONCURRENT: int = 100
+    THROTTLE_WARNING_CONCURRENT: int = 75
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -4,6 +4,7 @@ from typing import List
 
 from ...models.Transactions import TransactionCreate, TransactionView, ErrorResponse, StatusUpdateRequest
 from ...services.Transfers_service import TransferService
+from ...core.feature_toggles import get_feature_manager, Feature
 
 from logging import getLogger
 from ...core.config import settings
@@ -27,6 +28,11 @@ async def create_transaction(data: TransactionCreate):
     Realiza una transferencia de fondos desde la cuenta del remitente a la cuenta del receptor.
     Valida que el remitente tenga suficientes fondos antes de completar la transacción.
     """
+    # Feature Toggle: Verificar si la creación de transacciones está habilitada
+    feature_manager = get_feature_manager()
+    if not await feature_manager.is_enabled(Feature.TRANSACTION_CREATE):
+        abort(503, description="Transaction creation is temporarily disabled")
+    
     service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     try:
         res = await service.create_transaction(data)
@@ -117,6 +123,11 @@ async def revert_transaction(id: str):
     Devuelve los fondos a la cuenta del remitente y actualiza el estado de la transacción a 'reverted'.
     Solo se pueden revertir transacciones que estén en estado 'completed'.
     """
+    # Feature Toggle: Verificar si la reversión está habilitada
+    feature_manager = get_feature_manager()
+    if not await feature_manager.is_enabled(Feature.TRANSACTION_REVERT):
+        abort(503, description="Transaction reversion is temporarily disabled")
+    
     service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.revert_transaction(id)
     if res is None:
@@ -139,6 +150,11 @@ async def delete_transaction(id: str):
     
     Marca una transacción como eliminada. Solo se pueden eliminar transacciones en estado 'pending' o 'failed'.
     """
+    # Feature Toggle: Verificar si la eliminación está habilitada
+    feature_manager = get_feature_manager()
+    if not await feature_manager.is_enabled(Feature.TRANSACTION_DELETE):
+        abort(503, description="Transaction deletion is temporarily disabled")
+    
     service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.delete_transaction(id)
     if res is None:
