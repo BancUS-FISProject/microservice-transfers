@@ -14,32 +14,11 @@ import redis.asyncio as redis
 from .api.v1.Transactions_blueprint import bp as transactions_bp_v1
 from .api.v1.Admin_blueprint import bp as admin_bp_v1
 
+from .core.logging_config import setup_logging
+
+# Configure logging centrally
+setup_logging()
 logger = getLogger()
-logger.setLevel(settings.LOG_LEVEL)
-
-console_handler = StreamHandler()
-console_handler.setLevel(settings.LOG_LEVEL)
-console_format = ColorFormatter(
-    "%(levelname)s:     %(message)s"
-)
-console_handler.setFormatter(console_format)
-
-file_handler = TimedRotatingFileHandler(
-    settings.LOG_FILE,
-    when="midnight",
-    interval=1,
-    backupCount=settings.LOG_BACKUP_COUNT
-)
-file_handler.setLevel(settings.LOG_LEVEL)
-file_formatter = Formatter(
-    "%(asctime)s - %(levelname)s:     %(message)s"
-)
-file_handler.setFormatter(file_formatter)
-
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
-logger.propagate = False
 
 
 def create_app():
