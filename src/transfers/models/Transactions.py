@@ -5,7 +5,7 @@ from typing import Optional
 class TransactionBase(BaseModel):
     sender: str
     receiver: str
-    quantity: int
+    quantity: float
     status: str = "pending"
     currency: str = "USD"
     sender_balance: Optional[float] = None
@@ -15,7 +15,7 @@ class TransactionBase(BaseModel):
 class TransactionCreate(BaseModel):
     sender: str
     receiver: str
-    quantity: int
+    quantity: float
 
 class TransactionView(TransactionBase):
     id: Optional[str] = None

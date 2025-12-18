@@ -1,4 +1,5 @@
 from logging import getLogger
+from datetime import datetime, timezone
 import httpx
 from aiobreaker import CircuitBreakerError
 
@@ -46,6 +47,8 @@ class TransferService:
             logger.error(f"Error fetching account details: {e}")
 
         gmt_time = await self.client.get_gmt_time()
+        if not gmt_time:
+            gmt_time = datetime.now(timezone.utc).isoformat()
 
         tx = TransactionBase(
             sender=data.sender,
@@ -59,7 +62,7 @@ class TransferService:
         inserted = await self.repo.insert_transaction(tx_doc)
 
         try:
-            resp = await self.client.debit_account(data.sender, int(data.quantity))
+            resp = await self.client.debit_account(data.sender, data.quantity)
             
             if resp.status_code == 403:
                 await self.repo.update_transaction_status(inserted["id"], "failed")
@@ -71,14 +74,14 @@ class TransferService:
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "debit_error", "transaction": inserted}
 
-            resp2 = await self.client.credit_account(data.receiver, int(data.quantity))
+            resp2 = await self.client.credit_account(data.receiver, data.quantity)
             
             if resp2.status_code == 404:
-                await self.client.credit_account(data.sender, int(data.quantity))
+                await self.client.credit_account(data.sender, data.quantity)
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "receiver_not_found", "transaction": inserted}
             if resp2.status_code >= 400:
-                await self.client.credit_account(data.sender, int(data.quantity))
+                await self.client.credit_account(data.sender, data.quantity)
                 await self.repo.update_transaction_status(inserted["id"], "failed")
                 return {"status": "failed", "reason": "credit_error", "transaction": inserted}
 
@@ -115,7 +118,7 @@ class TransferService:
 
         sender = tx.get("sender")
         receiver = tx.get("receiver")
-        quantity = int(tx.get("quantity"))
+        quantity = tx.get("quantity")
 
         try:
             resp = await self.client.debit_account(receiver, quantity)
