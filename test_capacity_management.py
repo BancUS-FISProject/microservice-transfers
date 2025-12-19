@@ -12,7 +12,32 @@ import json
 BASE_URL = "http://localhost:8000"
 API_V1 = f"{BASE_URL}/v1"
 
-# ... (rest of imports and print functions remain same)
+# Colores para terminal
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+def print_header(text: str):
+    print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*60}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{text:^60}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{'='*60}{Colors.RESET}\n")
+
+def print_success(text: str):
+    print(f"{Colors.GREEN}✓ {text}{Colors.RESET}")
+
+def print_error(text: str):
+    print(f"{Colors.RED}✗ {text}{Colors.RESET}")
+
+def print_warning(text: str):
+    print(f"{Colors.YELLOW}⚠ {text}{Colors.RESET}")
+
+def print_info(text: str):
+    print(f"{Colors.BLUE}ℹ {text}{Colors.RESET}")
 
 async def test_health_check():
     """Test 1: Health Check"""
