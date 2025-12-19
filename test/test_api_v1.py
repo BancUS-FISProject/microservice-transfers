@@ -333,7 +333,10 @@ async def test_revert_transaction_success(client):
             "status": "reverted",
             "transaction": {
                 "id": transaction_id,
-                "status": "reverted"
+                "status": "reverted",
+                "sender": test_data["sender_id"],
+                "receiver": test_data["receiver_id"],
+                "quantity": 100.0
             }
         }
         
@@ -404,7 +407,10 @@ async def test_update_transaction_status_success(client):
             "status": "updated",
             "transaction": {
                 "id": transaction_id,
-                "status": "completed"
+                "status": "completed",
+                "sender": test_data["sender_id"],
+                "receiver": test_data["receiver_id"],
+                "quantity": 100.0
             }
         }
         
@@ -472,7 +478,13 @@ async def test_delete_transaction_success(client):
     with patch.object(TransferService, 'delete_transaction', new_callable=AsyncMock) as mock_delete:
         mock_delete.return_value = {
             "status": "deleted",
-            "transaction": {"id": transaction_id, "status": "deleted"}
+            "transaction": {
+                "id": transaction_id, 
+                "status": "deleted",
+                "sender": test_data["sender_id"],
+                "receiver": test_data["receiver_id"],
+                "quantity": 100.0
+            }
         }
         
         response = await client.delete(f"/v1/transactions/{transaction_id}")
