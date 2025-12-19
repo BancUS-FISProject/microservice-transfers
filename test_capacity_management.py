@@ -184,6 +184,11 @@ async def test_throttling():
         
         print_info(f"Requests exitosos: {successful}/50")
         print_info(f"Errores: {errors}/50")
+
+        # Imprimir los primeros 5 errores para depuración
+        failed_requests = [r for r in results if not r['success'] and r['status'] != 503]
+        for i, fail in enumerate(failed_requests[:5]):
+            print_error(f"Error {i+1}: Status={fail.get('status')} Error={fail.get('error')}")
         
         # No hacemos assert sobre el throttling exacto porque depende de la máquina,
         # pero sí aseguramos que no haya errores de conexión masivos (status 0)

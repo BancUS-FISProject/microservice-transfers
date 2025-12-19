@@ -65,29 +65,54 @@ class ThrottlingManager:
         self.active_requests = 0
         self._metrics_history: list[SystemMetrics] = []
         self._max_history = 60  # Mantener últimos 60 segundos
-    
-    def get_current_metrics(self) -> SystemMetrics:
-        """Obtiene las métricas actuales del sistema"""
-        return SystemMetrics(
-            cpu_percent=psutil.cpu_percent(interval=0.1),
-            memory_percent=psutil.virtual_memory().percent,
-            active_requests=self.active_requests,
+        
+        # Inicializar métricas con valores por defecto
+        self._current_metrics = SystemMetrics(
+            cpu_percent=0.0,
+            memory_percent=0.0,
+            active_requests=0,
             timestamp=time.time()
         )
+        # Primera llamada para inicializar el contador de psutil
+        psutil.cpu_percent(interval=None)
     
+    def get_current_metrics(self) -> SystemMetrics:
+        """Retorna las últimas métricas capturadas"""
+        return self._current_metrics
+    
+    async def update_metrics(self):
+        """
+        Actualiza las métricas del sistema.
+        Esta función debe ser llamada periódicamente desde una tarea en segundo plano.
+        """
+        try:
+            # interval=None no bloquea; calcula el uso desde la última llamada
+            cpu = psutil.cpu_percent(interval=None)
+            mem = psutil.virtual_memory().percent
+            
+            self._current_metrics = SystemMetrics(
+                cpu_percent=cpu,
+                memory_percent=mem,
+                active_requests=self.active_requests,
+                timestamp=time.time()
+            )
+            
+            # Almacenar en historial
+            self._metrics_history.append(self._current_metrics)
+            if len(self._metrics_history) > self._max_history:
+                self._metrics_history.pop(0)
+                
+        except Exception as e:
+            logger.error(f"Error updating system metrics: {e}")
+
     def calculate_throttle_level(self) -> tuple[int, str]:
         """
-        Calcula el nivel de throttling necesario
+        Calcula el nivel de throttling necesario basado en las métricas cacheadas
         
         Returns:
             (nivel, razón) - Nivel de throttling y descripción de la razón
         """
-        metrics = self.get_current_metrics()
-        
-        # Almacenar en historial
-        self._metrics_history.append(metrics)
-        if len(self._metrics_history) > self._max_history:
-            self._metrics_history.pop(0)
+        metrics = self._current_metrics
         
         reasons = []
         level = ThrottlingLevel.NONE
@@ -174,6 +199,7 @@ class ThrottlingManager:
         delay, _ = self.get_throttle_delay()
         
         return {
+            "timestamp": metrics.timestamp,
             "cpu_percent": round(metrics.cpu_percent, 2),
             "memory_percent": round(metrics.memory_percent, 2),
             "active_requests": metrics.active_requests,

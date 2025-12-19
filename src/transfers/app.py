@@ -74,8 +74,22 @@ def create_app():
                 max_concurrent_requests=settings.THROTTLE_MAX_CONCURRENT,
                 warning_concurrent_requests=settings.THROTTLE_WARNING_CONCURRENT,
             )
-            init_throttling_manager(throttle_config)
+            manager = init_throttling_manager(throttle_config)
             logger.info("✅ Throttling Manager initialized")
+
+            # Iniciar tarea de fondo para métricas
+            async def metrics_updater():
+                logger.info("🚀 System metrics background task started")
+                try:
+                    while True:
+                        await manager.update_metrics()
+                        await asyncio.sleep(1) # Actualizar cada segundo
+                except asyncio.CancelledError:
+                    logger.info("🛑 System metrics background task stopping")
+                except Exception as e:
+                    logger.error(f"❌ Error in metrics background task: {e}")
+
+            app.metrics_task = asyncio.create_task(metrics_updater())
             
         except Exception as e:
             logger.error("Startup failed. Shutting down...")
@@ -86,6 +100,16 @@ def create_app():
     @app.after_serving
     async def shutdown():
         logger.info("Transfers service is shutting down...")
+        
+        # Detener tarea de métricas
+        if hasattr(app, 'metrics_task'):
+            app.metrics_task.cancel()
+            try:
+                await app.metrics_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Metrics background task stopped")
+
         ext.close_db_client()
         if hasattr(app, 'redis_client'):
             await app.redis_client.close()
