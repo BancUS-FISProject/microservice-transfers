@@ -1,11 +1,13 @@
 name: Automated tests
 
 on:
+  push:
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main, master, dev ]
+    branches: [ main, develop ]
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKER_USER }}/microservice-accounts
+  IMAGE_NAME: ${{ secrets.DOCKER_USER }}/microservice-transfers
 
 jobs:
   api-test:
@@ -36,7 +38,7 @@ jobs:
 
       - name: Init API in background
         run: |
-          uvicorn src.accounts.app:create_app --factory --host 0.0.0.0 --port 8000 &
+          uvicorn src.transfers.app:create_app --factory --host 0.0.0.0 --port 8000 &
 
           sleep 5
 
