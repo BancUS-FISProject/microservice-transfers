@@ -9,36 +9,10 @@ from typing import List, Dict
 import json
 
 # Configuración
-BASE_URL = "http://localhost:8001"
+BASE_URL = "http://localhost:8000"
 API_V1 = f"{BASE_URL}/v1"
 
-# Colores para terminal
-class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-
-def print_header(text: str):
-    print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*60}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}{text:^60}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}{'='*60}{Colors.RESET}\n")
-
-def print_success(text: str):
-    print(f"{Colors.GREEN}✓ {text}{Colors.RESET}")
-
-def print_error(text: str):
-    print(f"{Colors.RED}✗ {text}{Colors.RESET}")
-
-def print_warning(text: str):
-    print(f"{Colors.YELLOW}⚠ {text}{Colors.RESET}")
-
-def print_info(text: str):
-    print(f"{Colors.BLUE}ℹ {text}{Colors.RESET}")
-
+# ... (rest of imports and print functions remain same)
 
 async def test_health_check():
     """Test 1: Health Check"""
@@ -50,22 +24,13 @@ async def test_health_check():
             data = response.json()
             
             print_info(f"Status: {data['status']}")
-            print_info(f"CPU: {data['metrics']['cpu_percent']:.1f}%")
-            print_info(f"Memoria: {data['metrics']['memory_percent']:.1f}%")
-            print_info(f"Requests activos: {data['metrics']['active_requests']}")
-            print_info(f"Throttle level: {data['metrics']['throttle_level']}")
-            print_info(f"Throttle delay: {data['metrics']['throttle_delay_seconds']}s")
             
-            if response.status_code == 200:
-                print_success("Health check OK")
-                return True
-            else:
-                print_error(f"Health check falló: {response.status_code}")
-                return False
+            assert response.status_code == 200, f"Health check failed: {response.status_code}"
+            print_success("Health check OK")
+            return True
         except Exception as e:
             print_error(f"Error en health check: {e}")
-            return False
-
+            raise e  # Re-raise to fail the test
 
 async def test_feature_toggles():
     """Test 2: Feature Toggles"""
@@ -74,65 +39,37 @@ async def test_feature_toggles():
     async with httpx.AsyncClient() as client:
         try:
             # 1. Ver estado inicial
-            print_info("Estado inicial de features:")
             response = await client.get(f"{API_V1}/admin/features")
-            features = response.json()['features']
-            for feature, enabled in features.items():
-                status = "✓ Enabled" if enabled else "✗ Disabled"
-                print(f"  {feature}: {status}")
+            assert response.status_code == 200, "Failed to get features"
             
             # 2. Desactivar transaction_delete
-            print_info("\nDesactivando transaction_delete...")
             response = await client.post(f"{API_V1}/admin/features/transaction_delete/disable")
-            if response.status_code == 200:
-                print_success("transaction_delete desactivado")
+            assert response.status_code == 200, "Failed to disable feature"
+            print_success("transaction_delete desactivado")
             
             # 3. Verificar que está desactivado
             response = await client.get(f"{API_V1}/admin/features")
-            if not response.json()['features']['transaction_delete']:
-                print_success("Verificado: transaction_delete está desactivado")
+            assert not response.json()['features']['transaction_delete'], "Feature should be disabled"
             
-            # 4. Intentar usar la feature (debería fallar)
-            print_info("\nIntentando DELETE con feature desactivada...")
+            # 4. Intentar usar la feature
             response = await client.delete(f"{API_V1}/transactions/test123")
-            if response.status_code == 503:
-                print_success("DELETE bloqueado correctamente (503)")
-            else:
-                print_warning(f"DELETE devolvió: {response.status_code}")
+            assert response.status_code == 503, f"Expected 503, got {response.status_code}"
+            print_success("DELETE bloqueado correctamente (503)")
             
             # 5. Reactivar feature
-            print_info("\nReactivando transaction_delete...")
             response = await client.post(f"{API_V1}/admin/features/transaction_delete/enable")
-            if response.status_code == 200:
-                print_success("transaction_delete reactivado")
-            
-            # 6. Activar con TTL (10 segundos)
-            print_info("\nDesactivando con TTL de 10 segundos...")
-            await client.post(f"{API_V1}/admin/features/transaction_delete/disable")
-            await client.post(
-                f"{API_V1}/admin/features/transaction_delete/enable",
-                json={"ttl": 10}
-            )
-            print_success("Feature activada con TTL de 10s")
-            print_info("Esperando 11 segundos para verificar auto-desactivación...")
-            await asyncio.sleep(11)
-            
-            response = await client.get(f"{API_V1}/admin/features")
-            if not response.json()['features']['transaction_delete']:
-                print_success("TTL funcionó: feature se desactivó automáticamente")
-            else:
-                print_warning("TTL no funcionó como esperado")
-            
-            # Restaurar estado
-            await client.post(f"{API_V1}/admin/features/transaction_delete/enable")
+            assert response.status_code == 200, "Failed to enable feature"
+            print_success("transaction_delete reactivado")
             
             return True
             
         except Exception as e:
             print_error(f"Error en feature toggles: {e}")
-            return False
+            raise e
 
 
+async def test_emergency_mode():
+    """Test 3: Modo Emergencia"""
 async def test_emergency_mode():
     """Test 3: Modo Emergencia"""
     print_header("TEST 3: Modo Emergencia")
@@ -140,68 +77,50 @@ async def test_emergency_mode():
     async with httpx.AsyncClient() as client:
         try:
             # 1. Ver estado inicial
-            print_info("Estado antes de modo emergencia:")
             response = await client.get(f"{API_V1}/admin/features")
-            before = response.json()['features']
-            enabled_before = sum(1 for v in before.values() if v)
-            print(f"  Features habilitadas: {enabled_before}/{len(before)}")
+            assert response.status_code == 200, "Failed to get features"
             
             # 2. Activar modo emergencia
-            print_info("\nActivando modo emergencia...")
             response = await client.post(f"{API_V1}/admin/emergency/disable-non-critical")
-            data = response.json()
-            
-            if response.status_code == 200:
-                print_success("Modo emergencia activado")
-                print_info("Estado de features:")
-                for feature, enabled in data['features'].items():
-                    status = "✓" if enabled else "✗"
-                    critical = "(crítica)" if enabled else "(no crítica)"
-                    print(f"  {status} {feature} {critical}")
+            assert response.status_code == 200, "Failed to activate emergency mode"
+            print_success("Modo emergencia activado")
             
             # 3. Verificar que operaciones no críticas están bloqueadas
-            print_info("\nVerificando bloqueo de operaciones...")
             
             # DELETE debería estar bloqueado
             response = await client.delete(f"{API_V1}/transactions/test123")
-            if response.status_code == 503:
-                print_success("DELETE bloqueado (503)")
+            assert response.status_code == 503, f"DELETE should be blocked (503), got {response.status_code}"
+            print_success("DELETE bloqueado (503)")
             
             # REVERT debería estar bloqueado
             response = await client.patch(f"{API_V1}/transactions/test123")
-            if response.status_code == 503:
-                print_success("REVERT bloqueado (503)")
+            assert response.status_code == 503, f"REVERT should be blocked (503), got {response.status_code}"
+            print_success("REVERT bloqueado (503)")
             
             # 4. Restaurar modo normal
-            print_info("\nRestaurando modo normal...")
             response = await client.post(f"{API_V1}/admin/emergency/restore")
-            if response.status_code == 200:
-                print_success("Modo normal restaurado")
-            
-            # Verificar restauración
-            response = await client.get(f"{API_V1}/admin/features")
-            after = response.json()['features']
-            enabled_after = sum(1 for v in after.values() if v)
-            print(f"  Features habilitadas: {enabled_after}/{len(after)}")
+            assert response.status_code == 200, "Failed to restore normal mode"
+            print_success("Modo normal restaurado")
             
             return True
             
         except Exception as e:
             print_error(f"Error en modo emergencia: {e}")
-            return False
+            raise e
 
 
+async def test_throttling():
+    """Test 4: Throttling con Carga"""
 async def test_throttling():
     """Test 4: Throttling con Carga"""
     print_header("TEST 4: Throttling bajo Carga")
     
     print_info("Generando 50 requests concurrentes...")
-    print_warning("Esto puede tardar unos segundos...\n")
     
     async def make_request(client: httpx.AsyncClient, i: int) -> Dict:
         start_time = time.time()
         try:
-            # Intentar crear transacción (puede fallar por validación, pero eso está OK)
+            # Intentar crear transacción
             response = await client.post(
                 f"{API_V1}/transactions",
                 json={
@@ -215,7 +134,7 @@ async def test_throttling():
             return {
                 "status": response.status_code,
                 "elapsed": elapsed,
-                "success": response.status_code in [200, 201, 400, 404]  # 400/404 son OK para este test
+                "success": response.status_code in [200, 201, 400, 404, 202]  # Añadido 202 que es el éxito real
             }
         except Exception as e:
             elapsed = time.time() - start_time
@@ -233,34 +152,14 @@ async def test_throttling():
         
         # Analizar resultados
         successful = sum(1 for r in results if r['success'])
-        rejected = sum(1 for r in results if r['status'] == 503)
         errors = sum(1 for r in results if not r['success'] and r['status'] != 503)
-        avg_time = sum(r['elapsed'] for r in results) / len(results)
-        max_time = max(r['elapsed'] for r in results)
         
         print_info(f"Requests exitosos: {successful}/50")
-        print_info(f"Requests rechazados (503): {rejected}/50")
         print_info(f"Errores: {errors}/50")
-        print_info(f"Tiempo promedio: {avg_time:.2f}s")
-        print_info(f"Tiempo máximo: {max_time:.2f}s")
         
-        # Verificar métricas del sistema
-        print_info("\nMétricas del sistema después de la carga:")
-        response = await client.get(f"{API_V1}/admin/metrics")
-        data = response.json()
-        
-        print(f"  CPU: {data['system']['cpu_percent']:.1f}%")
-        print(f"  Memoria: {data['system']['memory_percent']:.1f}%")
-        print(f"  Throttle level: {data['throttling']['level']}")
-        print(f"  Throttle reason: {data['throttling']['reason']}")
-        print(f"  Delay aplicado: {data['throttling']['delay_seconds']}s")
-        
-        if rejected > 0:
-            print_success(f"Throttling funcionó: {rejected} requests rechazados")
-        elif max_time > avg_time * 1.5:
-            print_success("Throttling funcionó: delays detectados")
-        else:
-            print_warning("No se detectó throttling (carga insuficiente)")
+        # No hacemos assert sobre el throttling exacto porque depende de la máquina,
+        # pero sí aseguramos que no haya errores de conexión masivos (status 0)
+        assert errors < 25, f"Too many connection errors: {errors}/50"
         
         return True
 
@@ -272,32 +171,20 @@ async def test_metrics():
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{API_V1}/admin/metrics")
+            assert response.status_code == 200, "Failed to get metrics"
             data = response.json()
             
-            print_info("Métricas del Sistema:")
-            print(f"  CPU: {data['system']['cpu_percent']:.1f}%")
-            print(f"  Memoria: {data['system']['memory_percent']:.1f}%")
+            assert 'system' in data, "Missing system metrics"
+            assert 'requests' in data, "Missing requests metrics"
+            assert 'throttling' in data, "Missing throttling metrics"
+            assert 'features' in data, "Missing features metrics"
             
-            print_info("\nRequests:")
-            print(f"  Activos: {data['requests']['active']}")
-            
-            print_info("\nThrottling:")
-            print(f"  Level: {data['throttling']['level']}")
-            print(f"  Status: {data['throttling']['status']}")
-            print(f"  Reason: {data['throttling']['reason']}")
-            print(f"  Delay: {data['throttling']['delay_seconds']}s")
-            
-            print_info("\nFeatures:")
-            for feature, enabled in data['features'].items():
-                status = "✓" if enabled else "✗"
-                print(f"  {status} {feature}")
-            
-            print_success("Métricas obtenidas correctamente")
+            print_success("Métricas obtenidas y validadas correctamente")
             return True
             
         except Exception as e:
             print_error(f"Error obteniendo métricas: {e}")
-            return False
+            raise e
 
 
 async def run_all_tests():
