@@ -156,10 +156,13 @@ async def test_throttling():
                 timeout=30.0
             )
             elapsed = time.time() - start_time
+            if response.status_code not in [200, 201, 400, 404, 202, 429, 503]:
+                print_warning(f"Unexpected status: {response.status_code} - {response.text[:100]}")
+
             return {
                 "status": response.status_code,
                 "elapsed": elapsed,
-                "success": response.status_code in [200, 201, 400, 404, 202, 429]  # 429 is ok under load
+                "success": response.status_code in [200, 201, 400, 404, 202, 429]
             }
         except Exception as e:
             elapsed = time.time() - start_time
@@ -170,7 +173,7 @@ async def test_throttling():
                 "error": str(e)
             }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         # Lanzar requests concurrentes
         tasks = [make_request(client, i) for i in range(50)]
         results = await asyncio.gather(*tasks)
