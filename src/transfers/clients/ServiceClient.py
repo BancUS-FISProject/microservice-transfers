@@ -52,11 +52,11 @@ class ServiceClient:
     async def patch(self, path: str, *, json: dict | None = None, headers: dict | None = None) -> httpx.Response:
         return await self.request("PATCH", path, json=json, headers=headers)
 
-    async def debit_account(self, iban: str, amount: int) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": -amount})
+    async def debit_account(self, iban: str, amount: float) -> httpx.Response:
+        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": -amount})
 
-    async def credit_account(self, iban: str, amount: int) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": amount})
+    async def credit_account(self, iban: str, amount: float) -> httpx.Response:
+        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": amount})
 
     async def get_account(self, iban: str) -> httpx.Response:
         return await self.request("GET", f"/v1/accounts/{iban}")
@@ -65,7 +65,6 @@ class ServiceClient:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get("https://timeapi.io/api/Time/current/zone?timeZone=UTC")
-                logger.info(f"GMT Time API Resp: {resp.status_code} - {resp.text}")
                 if resp.status_code == 200:
                     return resp.json().get("dateTime")
         except Exception as e:

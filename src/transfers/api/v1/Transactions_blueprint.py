@@ -42,9 +42,9 @@ async def create_transaction(data: TransactionCreate):
     if res.get("status") == "completed":
         return res["transaction"], 202
     elif res.get("reason") == "service_unavailable":
-        return jsonify(res), 503
+        return {"error": res.get("reason"), "status": res.get("status")}, 503
     else:
-        return jsonify(res), 400
+        return {"error": res.get("reason"), "status": res.get("status")}, 400
 
 @bp.get("/<string:id>")
 @tag(["transactions"])
@@ -135,9 +135,9 @@ async def revert_transaction(id: str):
     if res.get("status") == "reverted":
         return res["transaction"], 200
     elif res.get("reason") == "service_unavailable":
-        return jsonify(res), 503
+        return {"error": res.get("reason"), "status": res.get("status")}, 503
     else:
-        return jsonify(res), 400
+        return {"error": res.get("reason"), "status": res.get("status")}, 400
 
 @bp.delete("/<string:id>")
 @tag(["transactions"])
@@ -163,7 +163,7 @@ async def delete_transaction(id: str):
     if res.get("status") == "deleted":
         return res["transaction"], 200
     else:
-        return jsonify(res), 400
+        return {"error": res.get("reason"), "status": res.get("status")}, 400
 
 
 @bp.put("/<string:id>/status")
@@ -180,11 +180,6 @@ async def put_status(id: str, data: StatusUpdateRequest):
     Estados válidos: pending, completed, failed, reverted.
     """
     new_status = data.status
-async def put_status(id: str):
-    payload = await request.get_json(silent=True) or {}
-    new_status = payload.get("status")
-    if not new_status:
-        abort(400, description="Missing 'status' in request body")
 
     service = TransferService(redis_client=getattr(current_app, "redis_client", None))
     res = await service.update_status(id, new_status)
@@ -194,4 +189,4 @@ async def put_status(id: str):
     if res.get("status") == "updated":
         return res["transaction"], 200
     else:
-        return jsonify(res), 400
+        return {"error": res.get("reason"), "status": res.get("status")}, 400

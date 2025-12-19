@@ -1,6 +1,18 @@
-# Contenedor generado
+### Configuración
 
-docker pull alvvigsua/microservice-transfers:latest
+El servicio está preparado para ser desplegado en Kubernetes inyectando las siguientes variables de entorno:
+
+| Variable | Descripción | Valor por Defecto |
+|----------|-------------|-------------------|
+| `ACCOUNTS_SERVICE_URL` | URL del servicio de Accounts (DNS K8s) | `http://host.docker.internal:8000` |
+| `MONGO_CONNECTION_STRING` | URI de conexión a MongoDB | `mongodb://localhost:27017` |
+| `MONGO_DATABASE_NAME` | Nombre de la base de datos | `transactions_db` |
+| `REDIS_HOST` | Host de Redis | `localhost` |
+| `REDIS_PORT` | Puerto de Redis | `6379` |
+| `LOG_LEVEL` | Nivel de logs | `INFO` |
+
+
+
 
 # Estructura del proyecto
 

@@ -6,11 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-ARG MONGO_CONNECTION_STRING
-ARG MONGO_CONNECTION_STRING
-
-ENV MONGO_CONNECTION_STRING=$MONGO_CONNECTION_STRING \
-    MONGO_CONNECTION_STRING=$MONGO_CONNECTION_STRING
+# Default configuration via environment variables
+ENV MONGO_CONNECTION_STRING=mongodb://mongo:27017 \
+    MONGO_DATABASE_NAME=transactions_db \
+    ACCOUNTS_SERVICE_URL=http://host.docker.internal:8000
 
 COPY requirements.txt .
 
@@ -25,4 +24,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.accounts.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn src.transfers.app:create_app --factory --host 0.0.0.0 --port ${PORT:-8000}"]
