@@ -147,7 +147,7 @@ async def test_throttling():
         try:
             # Intentar crear transacción
             response = await client.post(
-                f"{API_V1}/transactions",
+                f"{API_V1}/transactions/",
                 json={
                     "sender": f"user{i}",
                     "receiver": f"user{i+1}",
