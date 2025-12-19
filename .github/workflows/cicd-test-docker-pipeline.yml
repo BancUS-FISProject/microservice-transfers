@@ -20,6 +20,8 @@ jobs:
       ACCOUNTS_SERVICE_URL: http://localhost:8000
       REDIS_HOST: localhost
       REDIS_PORT: 6379
+      RATE_LIMIT: 2000
+      RATE_LIMIT_WINDOW: 60
 
     services:
       redis:

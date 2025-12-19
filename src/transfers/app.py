@@ -44,7 +44,7 @@ def create_app():
     from .middleware.RateLimiter import RateLimiter
     from .middleware.ThrottlingMiddleware import ThrottlingMiddleware
     
-    RateLimiter(app, limit=50, window=60)
+    RateLimiter(app, limit=settings.RATE_LIMIT, window=settings.RATE_LIMIT_WINDOW)
     ThrottlingMiddleware(app)
 
     @app.before_serving

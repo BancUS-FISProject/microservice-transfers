@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     THROTTLE_MEMORY_WARNING: float = 75.0
     THROTTLE_MEMORY_CRITICAL: float = 90.0
     THROTTLE_MAX_CONCURRENT: int = 100
+    THROTTLE_MAX_CONCURRENT: int = 100
     THROTTLE_WARNING_CONCURRENT: int = 75
+
+    # Rate Limiting
+    RATE_LIMIT: int = 50
+    RATE_LIMIT_WINDOW: int = 60
 
     model_config = SettingsConfigDict(
         env_file=".env",
