@@ -9,6 +9,7 @@ from .core.throttling import init_throttling_manager, ThrottleConfig
 from logging import getLogger, Formatter, StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from .utils.LoggerColorFormatter import ColorFormatter
+import asyncio
 import redis.asyncio as redis
 
 from .api.v1.Transactions_blueprint import bp as transactions_bp_v1
