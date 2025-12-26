@@ -33,11 +33,17 @@ class TransferService:
 
         sender_balance = None
         receiver_balance = None
+        sender_subscription = None
+        
         try:
             sender_resp = await self.client.get_account(data.sender)
             logger.info(f"Sender account resp: {sender_resp.status_code} - {sender_resp.text}")
             if sender_resp.status_code == 200:
-                sender_balance = sender_resp.json().get("balance")
+                sender_data = sender_resp.json()
+                sender_balance = sender_data.get("balance")
+                sender_subscription = sender_data.get("subscription")
+                logger.info(f"Sender subscription: {sender_subscription}")
+                logger.info(f"Sender balance: {sender_balance}")
                 
             receiver_resp = await self.client.get_account(data.receiver)
             logger.info(f"Receiver account resp: {receiver_resp.status_code} - {receiver_resp.text}")
@@ -45,6 +51,48 @@ class TransferService:
                 receiver_balance = receiver_resp.json().get("balance")
         except Exception as e:
             logger.error(f"Error fetching account details: {e}")
+
+        # Validar límites de suscripción
+        if sender_subscription:
+            try:
+                sent_resp = await self.client.get_sent_transactions(data.sender)
+                if sent_resp.status_code == 200:
+                    transactions = sent_resp.json()
+                    logger.info(f"Fetched {len(transactions)} sent transactions for {data.sender}")
+                    
+                    # Filtrar transacciones completadas del mes actual
+                    current_month = datetime.now(timezone.utc).month
+                    current_year = datetime.now(timezone.utc).year
+                    
+                    completed_this_month = 0
+                    for tx in transactions:
+                        if tx.get("status") == "completed":
+                            date_str = tx.get("date") or tx.get("gmt_time")
+                            if date_str:
+                                try:
+                                    tx_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                                    if tx_date.month == current_month and tx_date.year == current_year:
+                                        completed_this_month += 1
+                                except:
+                                    pass
+                    
+                    # Verificar límites según suscripción
+                    subscription_limits = {
+                        "Free": 5,
+                        "Premium": 10,
+                        "Gold": float('inf')  # Ilimitadas
+                    }
+                    
+                    limit = subscription_limits.get(sender_subscription, 0)
+                    logger.info(f"Subscription: {sender_subscription}, Completed this month: {completed_this_month}, Limit: {limit}")
+                    
+                    if completed_this_month >= limit:
+                        raise ValueError(f"Monthly transaction limit reached for {sender_subscription} subscription")
+                        
+            except ValueError:
+                raise
+            except Exception as e:
+                logger.warning(f"Error checking transaction limits: {e}")
 
         # Obtener fecha GMT de API externa
         gmt_time = await self.client.get_gmt_time()

@@ -61,6 +61,12 @@ class ServiceClient:
     async def get_account(self, iban: str) -> httpx.Response:
         return await self.request("GET", f"/v1/accounts/{iban}")
 
+    async def get_sent_transactions(self, iban: str) -> httpx.Response:
+        # Llamada al servicio de transfers (puerto 8001) en lugar del servicio base
+        url = f"http://host.docker.internal:8001/v1/transactions/user/{iban}/sent"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await client.get(url)
+
     async def get_gmt_time(self) -> str | None:
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:  # Reducido a 2 segundos
