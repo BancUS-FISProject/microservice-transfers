@@ -46,9 +46,18 @@ class TransferService:
         except Exception as e:
             logger.error(f"Error fetching account details: {e}")
 
+        # Obtener fecha GMT de API externa
         gmt_time = await self.client.get_gmt_time()
-        if not gmt_time:
-            gmt_time = datetime.now(timezone.utc).isoformat()
+        if gmt_time:
+            # Convertir el string ISO a datetime
+            try:
+                transaction_date = datetime.fromisoformat(gmt_time.replace('Z', '+00:00'))
+                gmt_time = transaction_date.isoformat()
+            except:
+                transaction_date = datetime.now(timezone.utc)
+        else:
+            # Fallback a hora local UTC si falla la API
+            transaction_date = datetime.now(timezone.utc)
 
         tx = TransactionBase(
             sender=data.sender,
@@ -56,7 +65,8 @@ class TransferService:
             quantity=data.quantity,
             sender_balance=sender_balance,
             receiver_balance=receiver_balance,
-            gmt_time=gmt_time
+            gmt_time=gmt_time,
+            date=transaction_date
         )
         tx_doc = tx.model_dump(by_alias=True)
         inserted = await self.repo.insert_transaction(tx_doc)
