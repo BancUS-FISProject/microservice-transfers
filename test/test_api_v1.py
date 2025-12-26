@@ -110,6 +110,74 @@ async def test_create_transaction_same_sender_receiver(client):
 
 
 @pytest.mark.asyncio
+async def test_create_transaction_free_subscription_limit_reached(client):
+    """
+    Test POST /v1/transactions/ — Free subscription limit reached (5 transactions)
+    """
+    payload = {
+        "sender": test_data["sender_id"],
+        "receiver": test_data["receiver_id"],
+        "quantity": 100
+    }
+    
+    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for Free subscription")
+        
+        response = await client.post("/v1/transactions/", json=payload)
+        assert response.status_code == 400
+        response_text = await response.get_data(as_text=True)
+        assert "limit" in response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_premium_subscription_limit_reached(client):
+    """
+    Test POST /v1/transactions/ — Premium subscription limit reached (10 transactions)
+    """
+    payload = {
+        "sender": test_data["sender_id"],
+        "receiver": test_data["receiver_id"],
+        "quantity": 100
+    }
+    
+    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for Premium subscription")
+        
+        response = await client.post("/v1/transactions/", json=payload)
+        assert response.status_code == 400
+        response_text = await response.get_data(as_text=True)
+        assert "limit" in response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_gold_subscription_unlimited(client):
+    """
+    Test POST /v1/transactions/ — Gold subscription has unlimited transactions
+    """
+    payload = {
+        "sender": test_data["sender_id"],
+        "receiver": test_data["receiver_id"],
+        "quantity": 100
+    }
+    
+    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "status": "completed",
+            "transaction": {
+                "id": "507f1f77bcf86cd799439011",
+                "sender": test_data["sender_id"],
+                "receiver": test_data["receiver_id"],
+                "quantity": 100,
+                "status": "completed",
+                "date": "2025-11-23T10:00:00"
+            }
+        }
+        
+        response = await client.post("/v1/transactions/", json=payload)
+        assert response.status_code == 202
+
+
+@pytest.mark.asyncio
 async def test_create_transaction_insufficient_funds(client):
     """
     Test POST /v1/transactions/ — Transaction fails due to insufficient funds
@@ -599,6 +667,130 @@ async def test_service_update_status_invalid_transitions():
     
     assert result["status"] == "failed"
     assert result["reason"] == "invalid_transition"
+
+
+@pytest.mark.asyncio
+async def test_service_subscription_limit_validation_free():
+    """
+    IN-PROCESS: Test subscription limit validation for Free plan
+    """
+    mock_repo = MagicMock()
+    mock_client = MagicMock()
+    
+    # Mock account response with Free subscription
+    account_response = MagicMock()
+    account_response.status_code = 200
+    account_response.json.return_value = {
+        "balance": 10000,
+        "subscription": "Free"
+    }
+    mock_client.get_account = AsyncMock(return_value=account_response)
+    
+    # Mock 5 completed transactions this month (at limit)
+    transactions_response = MagicMock()
+    transactions_response.status_code = 200
+    transactions_response.json.return_value = [
+        {"status": "completed", "date": "2025-12-01T10:00:00"},
+        {"status": "completed", "date": "2025-12-05T10:00:00"},
+        {"status": "completed", "date": "2025-12-10T10:00:00"},
+        {"status": "completed", "date": "2025-12-15T10:00:00"},
+        {"status": "completed", "date": "2025-12-20T10:00:00"}
+    ]
+    mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    service = TransferService(repository=mock_repo, client=mock_client)
+    
+    data = TransactionCreate(
+        sender="IBAN-SENDER",
+        receiver="IBAN-RECEIVER",
+        quantity=100
+    )
+    
+    with pytest.raises(ValueError, match="Monthly transaction limit reached"):
+        await service.create_transaction(data)
+
+
+@pytest.mark.asyncio
+async def test_service_subscription_limit_validation_premium():
+    """
+    IN-PROCESS: Test subscription limit validation for Premium plan
+    """
+    mock_repo = MagicMock()
+    mock_client = MagicMock()
+    
+    # Mock account response with Premium subscription
+    account_response = MagicMock()
+    account_response.status_code = 200
+    account_response.json.return_value = {
+        "balance": 10000,
+        "subscription": "Premium"
+    }
+    mock_client.get_account = AsyncMock(return_value=account_response)
+    
+    # Mock 10 completed transactions this month (at limit)
+    transactions_response = MagicMock()
+    transactions_response.status_code = 200
+    transactions_response.json.return_value = [
+        {"status": "completed", "date": f"2025-12-{i:02d}T10:00:00"} 
+        for i in range(1, 11)
+    ]
+    mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    service = TransferService(repository=mock_repo, client=mock_client)
+    
+    data = TransactionCreate(
+        sender="IBAN-SENDER",
+        receiver="IBAN-RECEIVER",
+        quantity=100
+    )
+    
+    with pytest.raises(ValueError, match="Monthly transaction limit reached"):
+        await service.create_transaction(data)
+
+
+@pytest.mark.asyncio
+async def test_service_subscription_limit_validation_gold_unlimited():
+    """
+    IN-PROCESS: Test Gold subscription has unlimited transactions
+    """
+    mock_repo = MagicMock()
+    mock_repo.insert_transaction = AsyncMock(return_value={"id": "test_id", "status": "pending"})
+    mock_repo.update_transaction_status = AsyncMock(return_value={"id": "test_id", "status": "completed"})
+    
+    mock_client = MagicMock()
+    
+    # Mock account response with Gold subscription
+    account_response = MagicMock()
+    account_response.status_code = 200
+    account_response.json.return_value = {
+        "balance": 10000,
+        "subscription": "Gold"
+    }
+    mock_client.get_account = AsyncMock(return_value=account_response)
+    
+    # Mock 100 completed transactions this month (way over Free/Premium limits)
+    transactions_response = MagicMock()
+    transactions_response.status_code = 200
+    transactions_response.json.return_value = [
+        {"status": "completed", "date": f"2025-12-{(i % 26) + 1:02d}T10:00:00"} 
+        for i in range(100)
+    ]
+    mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    mock_client.get_gmt_time = AsyncMock(return_value=None)
+    mock_client.debit_account = AsyncMock(return_value=MagicMock(status_code=200))
+    mock_client.credit_account = AsyncMock(return_value=MagicMock(status_code=200))
+    
+    service = TransferService(repository=mock_repo, client=mock_client)
+    
+    data = TransactionCreate(
+        sender="IBAN-SENDER",
+        receiver="IBAN-RECEIVER",
+        quantity=100
+    )
+    
+    # Should NOT raise an error for Gold subscription
+    result = await service.create_transaction(data)
+    assert result["status"] == "completed"
 
 
 @pytest.mark.asyncio
