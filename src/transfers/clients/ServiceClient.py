@@ -2,6 +2,9 @@ import httpx
 from aiobreaker import CircuitBreaker
 from logging import getLogger
 from ..core.config import settings
+import os
+
+TRANSFERS_SERVICE_URL = os.getenv("TRANSFERS_SERVICE_URL", "http://localhost:8001")
 
 logger = getLogger(__name__)
 
@@ -53,17 +56,16 @@ class ServiceClient:
         return await self.request("PATCH", path, json=json, headers=headers)
 
     async def debit_account(self, iban: str, amount: float) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": -amount})
+        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": -amount})
 
     async def credit_account(self, iban: str, amount: float) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": amount})
+        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": amount})
 
     async def get_account(self, iban: str) -> httpx.Response:
         return await self.request("GET", f"/v1/accounts/{iban}")
-
+        
     async def get_sent_transactions(self, iban: str) -> httpx.Response:
-        # Llamada al servicio de transfers (puerto 8001) en lugar del servicio base
-        url = f"http://host.docker.internal:8001/v1/transactions/user/{iban}/sent"
+        url = f"{TRANSFERS_SERVICE_URL}/v1/transactions/user/{iban}/sent"
         async with httpx.AsyncClient(timeout=10.0) as client:
             return await client.get(url)
 
