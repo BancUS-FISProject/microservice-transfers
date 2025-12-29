@@ -53,20 +53,35 @@ class ServiceClient:
         return await self.request("PATCH", path, json=json, headers=headers)
 
     async def debit_account(self, iban: str, amount: float) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": -amount})
+        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": -amount})
 
     async def credit_account(self, iban: str, amount: float) -> httpx.Response:
-        return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": amount})
+        return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": amount})
 
     async def get_account(self, iban: str) -> httpx.Response:
         return await self.request("GET", f"/v1/accounts/{iban}")
 
+    async def get_sent_transactions(self, iban: str) -> httpx.Response:
+        # Llamada al servicio de transfers (puerto 8001) en lugar del servicio base
+        url = f"http://host.docker.internal:8001/v1/transactions/user/{iban}/sent"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await client.get(url)
+
     async def get_gmt_time(self) -> str | None:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:  # Reducido a 2 segundos
                 resp = await client.get("https://timeapi.io/api/Time/current/zone?timeZone=UTC")
+                logger.info(f"GMT Time API response: {resp.status_code}")
                 if resp.status_code == 200:
-                    return resp.json().get("dateTime")
+                    data = resp.json()
+                    logger.info(f"GMT Time API data: {data}")
+                    return data.get("dateTime")
+                else:
+                    logger.warning(f"GMT Time API returned non-200 status: {resp.status_code} - {resp.text}")
+        except httpx.TimeoutException as e:
+            logger.warning(f"Timeout fetching GMT time (using local UTC fallback)")
+        except httpx.RequestError as e:
+            logger.error(f"Request error fetching GMT time: {e}")
         except Exception as e:
-            logger.error(f"Failed to fetch GMT time: {e}")
+            logger.error(f"Unexpected error fetching GMT time: {type(e).__name__} - {e}")
         return None
