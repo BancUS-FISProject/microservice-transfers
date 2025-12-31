@@ -13,6 +13,9 @@ ENV MONGO_CONNECTION_STRING=mongodb://mongo:27017 \
 
 COPY requirements.txt .
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
