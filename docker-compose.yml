@@ -20,6 +20,8 @@ services:
       - MONGO_DATABASE_NAME=transactions_db
       - ACCOUNTS_SERVICE_URL=http://host.docker.internal:8000
       - TRANSFERS_SERVICE_URL=http://host.docker.internal:8001
+      - FRAUD_SERVICE=http://host.docker.internal:3001
+      - AUTH_SERVICE=http://host.docker.internal:8002
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     command: uvicorn src.transfers.app:create_app --factory --host 0.0.0.0 --port 8000

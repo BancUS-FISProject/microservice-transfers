@@ -5,6 +5,7 @@ from ..core.config import settings
 import os
 
 TRANSFERS_SERVICE_URL = os.getenv("TRANSFERS_SERVICE_URL", "http://localhost:8001")
+FRAUD_SERVICE_URL = os.getenv("FRAUD_SERVICE")
 
 logger = getLogger(__name__)
 
@@ -68,6 +69,16 @@ class ServiceClient:
         url = f"{TRANSFERS_SERVICE_URL}/v1/transactions/user/{iban}/sent"
         async with httpx.AsyncClient(timeout=10.0) as client:
             return await client.get(url)
+
+    async def get_fraud_check(self, sender: str, receiver: str, quantity: float) -> httpx.Response:
+        url = f"{FRAUD_SERVICE_URL}/v1/fraud-alerts/check"
+        body = {
+            "origin": sender,
+            "destination": receiver,
+            "amount": quantity
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await client.post(url, json=body)
 
     async def get_gmt_time(self) -> str | None:
         try:
