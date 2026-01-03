@@ -48,6 +48,10 @@ def create_app():
     RateLimiter(app, limit=settings.RATE_LIMIT, window=settings.RATE_LIMIT_WINDOW)
     ThrottlingMiddleware(app)
 
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}, 200
+
     @app.before_serving
     async def startup():
         logger.info("Transfers service is starting up...")
