@@ -690,13 +690,19 @@ async def test_service_subscription_limit_validation_free():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": "2025-12-01T10:00:00"},
-        {"status": "completed", "date": "2025-12-05T10:00:00"},
-        {"status": "completed", "date": "2025-12-10T10:00:00"},
-        {"status": "completed", "date": "2025-12-15T10:00:00"},
-        {"status": "completed", "date": "2025-12-20T10:00:00"}
+        {"status": "completed", "date": "2026-01-01T10:00:00"},
+        {"status": "completed", "date": "2026-01-02T10:00:00"},
+        {"status": "completed", "date": "2026-01-03T10:00:00"},
+        {"status": "completed", "date": "2026-01-04T10:00:00"},
+        {"status": "completed", "date": "2026-01-04T11:00:00"}
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check (aunque no debería llegar aquí por el límite)
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "Transaction approved"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
     
@@ -731,10 +737,16 @@ async def test_service_subscription_limit_validation_premium():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": f"2025-12-{i:02d}T10:00:00"} 
+        {"status": "completed", "date": f"2026-01-{i:02d}T10:00:00"} 
         for i in range(1, 11)
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check (aunque no debería llegar aquí por el límite)
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "Transaction approved"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
     
@@ -772,10 +784,17 @@ async def test_service_subscription_limit_validation_gold_unlimited():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": f"2025-12-{(i % 26) + 1:02d}T10:00:00"} 
+        {"status": "completed", "date": f"2026-01-{(i % 4) + 1:02d}T{i:02d}:00:00"} 
         for i in range(100)
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check - debe pasar para Gold
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "Transaction approved"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
+    
     mock_client.get_gmt_time = AsyncMock(return_value=None)
     mock_client.debit_account = AsyncMock(return_value=MagicMock(status_code=200))
     mock_client.credit_account = AsyncMock(return_value=MagicMock(status_code=200))
