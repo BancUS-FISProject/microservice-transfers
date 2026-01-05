@@ -111,29 +111,9 @@ async def test_create_transaction_same_sender_receiver(client):
 
 
 @pytest.mark.asyncio
-async def test_create_transaction_free_subscription_limit_reached(client):
+async def test_create_transaction_basico_subscription_limit_reached(client):
     """
-    Test POST /v1/transactions/ — Free subscription limit reached (5 transactions)
-    """
-    payload = {
-        "sender": test_data["sender_id"],
-        "receiver": test_data["receiver_id"],
-        "quantity": 100
-    }
-    
-    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
-        mock_create.side_effect = ValueError("Monthly transaction limit reached for Free subscription")
-        
-        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
-        assert response.status_code == 400
-        response_text = await response.get_data(as_text=True)
-        assert "limit" in response_text.lower()
-
-
-@pytest.mark.asyncio
-async def test_create_transaction_premium_subscription_limit_reached(client):
-    """
-    Test POST /v1/transactions/ — Premium subscription limit reached (10 transactions)
+    Test POST /v1/transactions/ — Basico subscription limit reached (5 transactions)
     """
     payload = {
         "sender": test_data["sender_id"],
@@ -142,7 +122,7 @@ async def test_create_transaction_premium_subscription_limit_reached(client):
     }
     
     with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
-        mock_create.side_effect = ValueError("Monthly transaction limit reached for Premium subscription")
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for basico subscription")
         
         response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
@@ -151,9 +131,29 @@ async def test_create_transaction_premium_subscription_limit_reached(client):
 
 
 @pytest.mark.asyncio
-async def test_create_transaction_gold_subscription_unlimited(client):
+async def test_create_transaction_estudiante_subscription_limit_reached(client):
     """
-    Test POST /v1/transactions/ — Gold subscription has unlimited transactions
+    Test POST /v1/transactions/ — Estudiante subscription limit reached (10 transactions)
+    """
+    payload = {
+        "sender": test_data["sender_id"],
+        "receiver": test_data["receiver_id"],
+        "quantity": 100
+    }
+    
+    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for estudiante subscription")
+        
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
+        assert response.status_code == 400
+        response_text = await response.get_data(as_text=True)
+        assert "limit" in response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_pro_subscription_unlimited(client):
+    """
+    Test POST /v1/transactions/ — Pro subscription has unlimited transactions
     """
     payload = {
         "sender": test_data["sender_id"],
@@ -671,9 +671,9 @@ async def test_service_update_status_invalid_transitions():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_free():
+async def test_service_subscription_limit_validation_basico():
     """
-    IN-PROCESS: Test subscription limit validation for Free plan
+    IN-PROCESS: Test subscription limit validation for basico plan
     """
     mock_repo = MagicMock()
     mock_client = MagicMock()
@@ -683,7 +683,7 @@ async def test_service_subscription_limit_validation_free():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Free"
+        "subscription": "basico"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -718,9 +718,9 @@ async def test_service_subscription_limit_validation_free():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_premium():
+async def test_service_subscription_limit_validation_estudiante():
     """
-    IN-PROCESS: Test subscription limit validation for Premium plan
+    IN-PROCESS: Test subscription limit validation for estudiante plan
     """
     mock_repo = MagicMock()
     mock_client = MagicMock()
@@ -730,7 +730,7 @@ async def test_service_subscription_limit_validation_premium():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Premium"
+        "subscription": "estudiante"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -762,9 +762,9 @@ async def test_service_subscription_limit_validation_premium():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_gold_unlimited():
+async def test_service_subscription_limit_validation_pro_unlimited():
     """
-    IN-PROCESS: Test Gold subscription has unlimited transactions
+    IN-PROCESS: Test pro subscription has unlimited transactions
     """
     mock_repo = MagicMock()
     mock_repo.insert_transaction = AsyncMock(return_value={"id": "test_id", "status": "pending"})
@@ -777,7 +777,7 @@ async def test_service_subscription_limit_validation_gold_unlimited():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Gold"
+        "subscription": "pro"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -790,7 +790,7 @@ async def test_service_subscription_limit_validation_gold_unlimited():
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
     
-    # Mock fraud check - debe pasar para Gold
+    # Mock fraud check - debe pasar para pro
     fraud_response = MagicMock()
     fraud_response.status_code = 200
     fraud_response.json.return_value = {"message": "Transaction approved"}

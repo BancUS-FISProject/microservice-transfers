@@ -79,9 +79,9 @@ class TransferService:
                     
                     # Verificar límites según suscripción
                     subscription_limits = {
-                        "Free": 5,
-                        "Premium": 10,
-                        "Gold": float('inf')  # Ilimitadas
+                        "basico": 5,
+                        "estudiante": 10,
+                        "pro": float('inf')  # Ilimitadas
                     }
                     
                     limit = subscription_limits.get(sender_subscription, 0)
