@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.transfers.services.Transfers_service import TransferService
 from src.transfers.models.Transactions import TransactionCreate
+from conftest import get_auth_headers
 
 # Test data shared across tests
 test_data = {
@@ -40,7 +41,7 @@ async def test_create_transaction_success(client):
             }
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 202, "Create transaction should return 202"
         response_json = await response.get_json()
@@ -77,7 +78,7 @@ async def test_create_transaction_invalid_quantity_zero(client):
         "receiver": test_data["receiver_id"],
         "quantity": 0
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
@@ -91,7 +92,7 @@ async def test_create_transaction_invalid_quantity_negative(client):
         "receiver": test_data["receiver_id"],
         "quantity": -500
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
@@ -105,7 +106,7 @@ async def test_create_transaction_same_sender_receiver(client):
         "receiver": test_data["sender_id"],  # Same as sender
         "quantity": 100
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
@@ -123,7 +124,7 @@ async def test_create_transaction_free_subscription_limit_reached(client):
     with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
         mock_create.side_effect = ValueError("Monthly transaction limit reached for Free subscription")
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
         response_text = await response.get_data(as_text=True)
         assert "limit" in response_text.lower()
@@ -143,7 +144,7 @@ async def test_create_transaction_premium_subscription_limit_reached(client):
     with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
         mock_create.side_effect = ValueError("Monthly transaction limit reached for Premium subscription")
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
         response_text = await response.get_data(as_text=True)
         assert "limit" in response_text.lower()
@@ -173,7 +174,7 @@ async def test_create_transaction_gold_subscription_unlimited(client):
             }
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 202
 
 
@@ -195,7 +196,7 @@ async def test_create_transaction_insufficient_funds(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
         response_text = await response.get_data(as_text=True)
         assert "insufficient_funds" in response_text or "failed" in response_text
@@ -219,7 +220,7 @@ async def test_create_transaction_sender_not_found(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers("IBAN-NONEXISTENT"))
         assert response.status_code == 400
 
 
@@ -241,7 +242,7 @@ async def test_create_transaction_receiver_not_found(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -306,7 +307,7 @@ async def test_get_transactions_by_user(client):
             {"id": "2", "sender": "other", "receiver": user_id, "quantity": 200, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}")
+        response = await client.get(f"/v1/transactions/user/{user_id}", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -322,7 +323,7 @@ async def test_get_transactions_by_user_not_found(client):
     with patch.object(TransferService, 'get_transactions_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -338,7 +339,7 @@ async def test_get_transactions_sent_by_user(client):
             {"id": "1", "sender": user_id, "receiver": "other", "quantity": 100, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}/sent")
+        response = await client.get(f"/v1/transactions/user/{user_id}/sent", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -353,7 +354,7 @@ async def test_get_transactions_sent_not_found(client):
     with patch.object(TransferService, 'get_transactions_sent_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER/sent")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER/sent", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -369,7 +370,7 @@ async def test_get_transactions_received_by_user(client):
             {"id": "1", "sender": "other", "receiver": user_id, "quantity": 200, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}/received")
+        response = await client.get(f"/v1/transactions/user/{user_id}/received", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -384,7 +385,7 @@ async def test_get_transactions_received_not_found(client):
     with patch.object(TransferService, 'get_transactions_received_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER/received")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER/received", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -408,7 +409,7 @@ async def test_revert_transaction_success(client):
             }
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -423,7 +424,7 @@ async def test_revert_transaction_not_found(client):
     with patch.object(TransferService, 'revert_transaction', new_callable=AsyncMock) as mock_revert:
         mock_revert.return_value = None
         
-        response = await client.patch("/v1/transactions/nonexistent_id")
+        response = await client.patch("/v1/transactions/nonexistent_id", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 404
 
 
@@ -441,7 +442,7 @@ async def test_revert_transaction_not_completed(client):
             "transaction": {"id": transaction_id, "status": "pending"}
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -459,7 +460,7 @@ async def test_revert_transaction_insufficient_funds(client):
             "transaction": {"id": transaction_id, "status": "completed"}
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -555,7 +556,7 @@ async def test_delete_transaction_success(client):
             }
         }
         
-        response = await client.delete(f"/v1/transactions/{transaction_id}")
+        response = await client.delete(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 200
 
@@ -568,7 +569,7 @@ async def test_delete_transaction_not_found(client):
     with patch.object(TransferService, 'delete_transaction', new_callable=AsyncMock) as mock_delete:
         mock_delete.return_value = None
         
-        response = await client.delete("/v1/transactions/nonexistent_id")
+        response = await client.delete("/v1/transactions/nonexistent_id", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 404
 
 

@@ -3,9 +3,31 @@ Pytest configuration and fixtures for the transfers microservice tests.
 """
 import pytest
 import asyncio
+import jwt
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.transfers.app import create_app
 from src.transfers.core import extensions as ext
+
+
+def create_test_jwt(iban: str) -> str:
+    """
+    Crea un JWT de prueba con el iban especificado.
+    No se firma porque verify_signature=False en el microservicio.
+    """
+    payload = {
+        "iban": iban,
+        "sub": "test_user",
+        "exp": 9999999999  # Expira en el futuro lejano
+    }
+    return jwt.encode(payload, "test_secret", algorithm="HS256")
+
+
+def get_auth_headers(iban: str) -> dict:
+    """
+    Genera los headers de autorización con un JWT válido para el iban dado.
+    """
+    token = create_test_jwt(iban)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
