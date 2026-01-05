@@ -7,10 +7,32 @@ import httpx
 import time
 from typing import List, Dict
 import json
+import jwt
 
 # Configuración
 BASE_URL = "http://localhost:8000"
 API_V1 = f"{BASE_URL}/v1"
+
+
+def create_test_jwt(iban: str) -> str:
+    """
+    Crea un JWT de prueba con el iban especificado.
+    No se firma porque verify_signature=False en el microservicio.
+    """
+    payload = {
+        "iban": iban,
+        "sub": "test_user",
+        "exp": 9999999999  # Expira en el futuro lejano
+    }
+    return jwt.encode(payload, "test_secret", algorithm="HS256")
+
+
+def get_auth_headers(iban: str) -> dict:
+    """
+    Genera los headers de autorización con un JWT válido para el iban dado.
+    """
+    token = create_test_jwt(iban)
+    return {"Authorization": f"Bearer {token}"}
 
 # Colores para terminal
 class Colors:
@@ -77,7 +99,7 @@ async def test_feature_toggles():
             assert not response.json()['features']['transaction_delete'], "Feature should be disabled"
             
             # 4. Intentar usar la feature
-            response = await client.delete(f"{API_V1}/transactions/test123")
+            response = await client.delete(f"{API_V1}/transactions/test123", headers=get_auth_headers("test_sender"))
             assert response.status_code == 503, f"Expected 503, got {response.status_code}"
             print_success("DELETE bloqueado correctamente (503)")
             
@@ -113,12 +135,12 @@ async def test_emergency_mode():
             # 3. Verificar que operaciones no críticas están bloqueadas
             
             # DELETE debería estar bloqueado
-            response = await client.delete(f"{API_V1}/transactions/test123")
+            response = await client.delete(f"{API_V1}/transactions/test123", headers=get_auth_headers("test_sender"))
             assert response.status_code == 503, f"DELETE should be blocked (503), got {response.status_code}"
             print_success("DELETE bloqueado (503)")
             
             # REVERT debería estar bloqueado
-            response = await client.patch(f"{API_V1}/transactions/test123")
+            response = await client.patch(f"{API_V1}/transactions/test123", headers=get_auth_headers("test_sender"))
             assert response.status_code == 503, f"REVERT should be blocked (503), got {response.status_code}"
             print_success("REVERT bloqueado (503)")
             
@@ -145,14 +167,16 @@ async def test_throttling():
     async def make_request(client: httpx.AsyncClient, i: int) -> Dict:
         start_time = time.time()
         try:
+            sender = f"user{i}"
             # Intentar crear transacción
             response = await client.post(
                 f"{API_V1}/transactions/",
                 json={
-                    "sender": f"user{i}",
+                    "sender": sender,
                     "receiver": f"user{i+1}",
                     "quantity": 10.0
                 },
+                headers=get_auth_headers(sender),
                 timeout=30.0
             )
             elapsed = time.time() - start_time
