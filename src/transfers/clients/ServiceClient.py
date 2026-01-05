@@ -16,12 +16,14 @@ class ServiceClient:
         base_url: str,
         breaker_fail_max: int = settings.BREAKER_FAILS,
         breaker_timeout: int = settings.BREAKER_TIMEOUT,
+        jwt: str = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.breaker = CircuitBreaker(
             fail_max=breaker_fail_max,
             timeout_duration=breaker_timeout,
         )
+        self.jwt = jwt
 
     async def request(
         self,
@@ -41,8 +43,13 @@ class ServiceClient:
                     kwargs['json'] = json
                 if params is not None:
                     kwargs['params'] = params
-                if headers is not None:
-                    kwargs['headers'] = headers
+                
+                # Propagar JWT a otros microservicios
+                request_headers = headers.copy() if headers else {}
+                if self.jwt and 'Authorization' not in request_headers:
+                    request_headers['Authorization'] = self.jwt
+                if request_headers:
+                    kwargs['headers'] = request_headers
 
                 return await self.breaker.call_async(
                     http_method,
@@ -58,9 +65,11 @@ class ServiceClient:
 
     async def debit_account(self, iban: str, amount: float) -> httpx.Response:
         return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": -amount})
+        #return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": -amount})
 
     async def credit_account(self, iban: str, amount: float) -> httpx.Response:
         return await self.patch(f"/v1/accounts/operation/{iban}/USD", json={"balance": amount})
+        #return await self.patch(f"/v1/accounts/operation/{iban}", json={"balance": amount})
 
     async def get_account(self, iban: str) -> httpx.Response:
         return await self.request("GET", f"/v1/accounts/{iban}")
@@ -68,7 +77,8 @@ class ServiceClient:
     async def get_sent_transactions(self, iban: str) -> httpx.Response:
         url = f"{TRANSFERS_SERVICE_URL}/v1/transactions/user/{iban}/sent"
         async with httpx.AsyncClient(timeout=10.0) as client:
-            return await client.get(url)
+            headers = {"Authorization": self.jwt} if self.jwt else None
+            return await client.get(url, headers=headers)
 
     async def get_fraud_check(self, sender: str, receiver: str, quantity: float) -> httpx.Response:
         url = f"{FRAUD_SERVICE_URL}/v1/fraud-alerts/check"
@@ -78,7 +88,8 @@ class ServiceClient:
             "amount": quantity
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
-            return await client.post(url, json=body)
+            headers = {"Authorization": self.jwt} if self.jwt else None
+            return await client.post(url, json=body, headers=headers)
 
     async def get_gmt_time(self) -> str | None:
         try:

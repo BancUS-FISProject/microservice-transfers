@@ -14,7 +14,7 @@ logger = getLogger(__name__)
 from ..core import extensions
 
 class TransferService:
-    def __init__(self, redis_client=None, repository=None, client=None):
+    def __init__(self, redis_client=None, repository=None, client=None, jwt=None):
         if repository:
             self.repo = repository
         elif redis_client:
@@ -22,8 +22,9 @@ class TransferService:
         else:
             self.repo = TransfersRepository(extensions.db)
             
-        self.client = client or ServiceClient(settings.ACCOUNTS_SERVICE_URL)
+        self.client = client or ServiceClient(settings.ACCOUNTS_SERVICE_URL, jwt=jwt)
         self.redis_client = redis_client
+        self.jwt = jwt
 
     async def create_transaction(self, data: TransactionCreate) -> dict:
         if data.quantity <= 0:
