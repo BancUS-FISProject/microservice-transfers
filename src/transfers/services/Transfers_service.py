@@ -173,6 +173,31 @@ class TransferService:
             return {"status": "failed", "reason": "connection_error", "transaction": inserted}
 
         updated = await self.repo.update_transaction_status(inserted["id"], "completed")
+        
+        # Notificar al servicio de notificaciones (no bloquea la transacción si falla)
+        try:
+            notification_payload = {
+                "type": "transaction",
+                "userId": data.sender,
+                "metadata": {
+                    "amount": data.quantity,
+                    "recipient": data.receiver
+                }
+            }
+            headers = {"Content-Type": "application/json"}
+            if self.jwt:
+                headers["Authorization"] = self.jwt
+            
+            async with httpx.AsyncClient(timeout=10.0) as notification_client:
+                notification_resp = await notification_client.post(
+                    "http://localhost:10000/v1/notifications/events",
+                    json=notification_payload,
+                    headers=headers
+                )
+                logger.info(f"Notification sent: {notification_resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Failed to send notification (non-blocking): {e}")
+        
         return {"status": "completed", "transaction": updated}
 
     async def get_transaction(self, id_str: str) -> dict | None:
