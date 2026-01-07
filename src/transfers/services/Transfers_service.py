@@ -95,24 +95,21 @@ class TransferService:
             except Exception as e:
                 logger.warning(f"Error checking transaction limits: {e}")
 
-        # Verificar fraude antes de procesar la transacción
+        # Verificar fraude antes de procesar la transacción (no bloqueante si el servicio no responde)
         try:
             fraud_resp = await self.client.get_fraud_check(data.sender, data.receiver, data.quantity)
             logger.info(f"Fraud check response: {fraud_resp.status_code} - {fraud_resp.text}")
             
             if fraud_resp.status_code == 200:
                 fraud_data = fraud_resp.json()
-                if fraud_data.get("message") != "Transaction approved":
+                if fraud_data.get("message") != "No risk detected":
                     raise ValueError(f"Transaction rejected by fraud check: {fraud_data.get('message', 'Unknown reason')}")
             else:
-                logger.warning(f"Fraud service returned non-200 status: {fraud_resp.status_code}")
-                # Si el servicio de fraude falla, rechazamos la transacción por seguridad
-                raise ValueError("Fraud check service unavailable")
+                logger.warning(f"Fraud service returned non-200 status (non-blocking): {fraud_resp.status_code}")
         except ValueError:
             raise
         except Exception as e:
-            logger.error(f"Error during fraud check: {e}")
-            raise ValueError("Unable to verify transaction safety")
+            logger.warning(f"Failed to check fraud service (non-blocking): {e}")
 
         # Obtener fecha GMT de API externa
         gmt_time = await self.client.get_gmt_time()

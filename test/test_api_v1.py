@@ -702,7 +702,7 @@ async def test_service_subscription_limit_validation_basico():
     # Mock fraud check (aunque no debería llegar aquí por el límite)
     fraud_response = MagicMock()
     fraud_response.status_code = 200
-    fraud_response.json.return_value = {"message": "Transaction approved"}
+    fraud_response.json.return_value = {"message": "No risk detected"}
     mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
@@ -746,7 +746,7 @@ async def test_service_subscription_limit_validation_estudiante():
     # Mock fraud check (aunque no debería llegar aquí por el límite)
     fraud_response = MagicMock()
     fraud_response.status_code = 200
-    fraud_response.json.return_value = {"message": "Transaction approved"}
+    fraud_response.json.return_value = {"message": "No risk detected"}
     mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
@@ -793,7 +793,7 @@ async def test_service_subscription_limit_validation_pro_unlimited():
     # Mock fraud check - debe pasar para pro
     fraud_response = MagicMock()
     fraud_response.status_code = 200
-    fraud_response.json.return_value = {"message": "Transaction approved"}
+    fraud_response.json.return_value = {"message": "No risk detected"}
     mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     mock_client.get_gmt_time = AsyncMock(return_value=None)
