@@ -29,12 +29,12 @@ El nivel de acabado del microservicio de transferencias/transacciones presentado
 
 *   **NIVEL 5 (BÁSICO):** Microservicio básico implementado. [Ver detalles](#61-requisitos-básicos)
 *   **NIVEL 7:**
-    *   **Aplicación basada en microservicios básica implementada:** Interacción completa evidenciada. [Ver detalles](#aplicación-básica)
+    *   **Aplicación basada en microservicios básica implementada:** Interacción completa evidenciada. [Ver detalles](#3-descomposición-y-arquitectura)
     *   **Análisis justificativo de suscripción óptima:** Realizado. [Ver detalles](#43-análisis-justificativo-de-la-suscripción-óptima-de-las-apis-del-proyecto)
     *   **3 Características avanzadas:** Superado (tiene 6).
 *   **NIVEL 9:**
     *   **Mínimo 20 pruebas de componente:** Implementadas más de 20 pruebas cubriendo casos positivos y negativos. [Ver detalles](#pruebas)
-    *   **API REST documentada con Swagger:** Integración automática con QuartSchema. [Ver swagger](#documentación-api)
+    *   **API REST documentada con Swagger:** Integración automática con QuartSchema. [Ver detalles](#documentación-api)
     *   **5 Características avanzadas:** Superado (tiene 6).
     *   **3 Características de App avanzada:** Superado (tiene 4).
 *   **NIVEL 10:**
@@ -58,18 +58,18 @@ El nivel de acabado del microservicio de transferencias/transacciones presentado
     *   **Pruebas (Locales y Externas):** Tests de componente e integración. [Ver justificación](#pruebas)
 
 *   **MICROSERVICIO AVANZADO QUE GESTIONE UN RECURSO (6 características):**
-    *   **Frontend con rutas y navegación:** Repositorio de frontend. [Ver justificación](#frontend)
-    *   **Caché (Redis):** Optimización de lecturas. [Ver justificación](#caché)
-    *   **Consumo API Externa (TimeAPI):** Obtención de hora en formato GMT. [Ver justificación](#consumo-api-externa)
-    *   **Rate Limit (Servicios Externos):** Protección de dependencias con otros microservicios. [Ver justificación](#rate-limit)
-    *   **Circuit Breaker:** Resiliencia ante fallos. [Ver justificación](#circuit-breaker)
-    *   **Throttling/Feature Toggles:** Gestión de capacidad. [Ver justificación](#throttling-y-feature-toggles)
+    *   **Frontend con rutas y navegación:** Repositorio de frontend. [Ver justificación](#6-frontend)
+    *   **Caché (Redis):** Optimización de lecturas. [Ver justificación](#1-caché-redis)
+    *   **Consumo API Externa (TimeAPI):** Obtención de hora en formato GMT. [Ver justificación](#2-consumo-api-externa-timeapi)
+    *   **Rate Limit (Servicios Externos):** Protección de dependencias con otros microservicios. [Ver justificación](#3-rate-limit)
+    *   **Circuit Breaker:** Resiliencia ante fallos. [Ver justificación](#4-circuit-breaker-resiliencia-entre-servicios)
+    *   **Throttling/Feature Toggles:** Gestión de capacidad. [Ver justificación](#5-throttling-y-feature-toggles-gestión-de-capacidad)
 
 *   **APLICACIÓN BASADA EN MICROSERVICIOS AVANZADA (4 características):**
-    *   **Mecanismo de Autenticación JWT:** Implementado en conjunto. [Ver justificación](#mecanismo-de-autenticación)
-    *   **Límites de uso por plan:** Según el costumer agreement. [Ver justificación](#límites-por-plan)
-    *   **API Gateway Inteligente:** Throttling/Auth en repositorio Gateway. [Ver justificación](#api-gateway-avanzado)
-    *   **Logs Comunes (Grafana):** Visualización centralizada de los logs de todos los microservicios. [Ver justificación](#logs-comunes)
+    *   **Mecanismo de Autenticación JWT:** Implementado en conjunto. [Ver justificación](#mecanismo-de-autenticación-jwt)
+    *   **Límites de uso por plan:** Según el costumer agreement. [Ver justificación](#límites-de-uso-por-plan)
+    *   **API Gateway:** Throttling/Auth en repositorio Gateway. [Ver justificación](#api-gateway-avanzado)
+    *   **Logs Comunes (Grafana):** Visualización centralizada de los logs de todos los microservicios. [Ver justificación](#logs-comunes-grafana)
 
 ---
 
@@ -126,6 +126,9 @@ Para garantizar la integridad y trazabilidad de las transacciones con una fuente
 
 *   **Plan Actual:** Gratuito (Público).
 *   **Justificación:** TimeAPI es un servicio abierto que no requiere clave de API para uso estándar moderado. El volumen de transacciones de para este proyecto es perfecto para su uso. Se implementa además un fallback a hora local en caso de fallo.
+
+    ![Standardized Consumption Model Datasheet](timeapi.png)
+    *Figura 1: Standardized Consumption Model Datasheet, reflejando el modelo de consumo, límites y segmentación de la API externa.*
 
 #### Notificaciones por email: Twilio SendGrid Email API (Nivel de Aplicación)
 
@@ -274,7 +277,7 @@ El servicio consume la siguiente API externa para obtener la hora GMT precisa:
     ```
 
 #### Documentación API
-**Justificación:** La documentación OpenAPI (Swagger) se genera automáticamente gracias a `quart-schema` y esta cuenta con los esquemas y códigos necesarios.
+**Justificación:** La documentación OpenAPI (Swagger) se genera automáticamente gracias a `quart-schema` y esta cuenta con los esquemas y códigos necesarios. Para poder acceder a ella se puede descargar el archivo openapi.json o lanzar el contenedor en local del [api-gateway](https://github.com/BancUS-FISProject/api-gateway) accediendo a http://localhost:8001/api/docs#/.
 *   **Código:** `src/transfers/app.py`
     ```python
     schema = QuartSchema()
@@ -547,58 +550,58 @@ Se excluyen algunas funcionalidades/endpoints como las administrativas o las de 
 
 ### 6.3. Aplicación Avanzada
 
-*   **Implementar un mecanismo de autenticación basado en JWT o equivalente.**
-    Como se acordó en el último seguimiento, al ser realizado por todas las parejas (delegado en el Servidor de Auth pero validado aquí), esta característica se considera de "Aplicación basada en microservicios avanzada".
+#### Mecanismo de Autenticación JWT
+**Implementado:** Como se acordó en el último seguimiento, al ser realizado por todas las parejas (delegado en el Servidor de Auth pero validado aquí), esta característica se considera de "Aplicación basada en microservicios avanzada".
+
+*   **Código (`src/transfers/api/v1/Transactions_blueprint.py`):**
+    ```python
+    # Extracción y decodificación del JWT para obtener el 'iban' del usuario autenticado
+    # y asegurar que coincide con el remitente de la transacción (Evitar suplantación).
+    auth_header = request.headers.get('Authorization')
+    _, token = auth_header.split(" ")
+    jwt_data = decode_jwt(token)
     
-    *   **Código (`src/transfers/api/v1/Transactions_blueprint.py`):**
-        ```python
-        # Extracción y decodificación del JWT para obtener el 'iban' del usuario autenticado
-        # y asegurar que coincide con el remitente de la transacción (Evitar suplantación).
-        auth_header = request.headers.get('Authorization')
-        _, token = auth_header.split(" ")
-        jwt_data = decode_jwt(token)
-        
-        if jwt_data.get('iban') != data.sender:
-             abort(403, description="Unauthorized access")
-        ```
+    if jwt_data.get('iban') != data.sender:
+            abort(403, description="Unauthorized access")
+    ```
 
-*   **Incluir en el plan de precios límites de uso y aplicarlos automáticamente según la suscripción del usuario.**
-    Se limitan las transacciones según el plan del usuario (Básico: 5, Estudiante: 10, Pro: Infinito).
+#### Límites de uso por plan
+**Implementado:** Se limitan las transacciones según el plan del usuario (Básico: 5, Estudiante: 10, Pro: Infinito).
+
+*   **Código (`src/transfers/services/Transfers_service.py`):**
+    ```python
+    subscription_limits = {
+        "basico": 5,
+        "estudiante": 10,
+        "pro": float('inf')
+    }
     
-    *   **Código (`src/transfers/services/Transfers_service.py`):**
-        ```python
-        subscription_limits = {
-            "basico": 5,
-            "estudiante": 10,
-            "pro": float('inf')
-        }
-        
-        # Validación mensual de operaciones
-        limit = subscription_limits.get(sender_subscription, 0)
-        if completed_this_month >= limit:
-            raise ValueError(f"Monthly transaction limit reached for {sender_subscription}")
-        ```
+    # Validación mensual de operaciones
+    limit = subscription_limits.get(sender_subscription, 0)
+    if completed_this_month >= limit:
+        raise ValueError(f"Monthly transaction limit reached for {sender_subscription}")
+    ```
 
-*   **Hacer uso de un API Gateway con funcionalidad avanzada como un mecanismo de throttling o de autenticación.**
-    [Ver configuración API Gateway](https://github.com/BancUS-FISProject/api-gateway/blob/main/nginx.conf). Tanto el API Gateway como el microservicio implementan Throttling.
+#### API Gateway Avanzado
+**Implementado:** [Ver configuración API Gateway](https://github.com/BancUS-FISProject/api-gateway/blob/main/nginx.conf). Tanto el API Gateway como el microservicio implementan Throttling.
 
-    * **Código:** https://github.com/BancUS-FISProject/api-gateway
+* **Código:** https://github.com/BancUS-FISProject/api-gateway
 
-*   **Cualquier otra extensión a la aplicación basada en microservicios básica acordada previamente con el profesor.**
-    Sistema de logs comunes con Grafana (ver en contenedor de Grafana). Todos los servicios emiten logs estructurados que Promtail puede ingerir.
-    
-    *   **Código (`src/transfers/core/logging_config.py`):**
-        ```python
-        # --- Console Handler (STDOUT) ---
-        # Fundamental para que Docker/Kubernetes capturen los logs
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(settings.LOG_LEVEL)
+#### Logs Comunes (Grafana)
+**Implementado:** Sistema de logs comunes con Grafana (ver en contenedor de Grafana). Todos los servicios emiten logs estructurados que Promtail puede ingerir.
 
-        file_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s:     %(message)s"
-        )
-        logger.addHandler(console_handler)
-        ```
+*   **Código (`src/transfers/core/logging_config.py`):**
+    ```python
+    # --- Console Handler (STDOUT) ---
+    # Fundamental para que Docker/Kubernetes capturen los logs
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(settings.LOG_LEVEL)
+
+    file_formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s:     %(message)s"
+    )
+    logger.addHandler(console_handler)
+    ```
 ---
 
 ## 7. Cumplimiento de metodología The Twelve-Factor App
@@ -680,11 +683,11 @@ A continuación se detalla cómo la arquitectura del microservicio **Transfers**
 
 A continuación se detalla la estimación de horas dedicadas por cada integrante:
 
-| Integrante                    | Actividad Principal                               | Horas (Aprox.) |
-| :---------------------------- | :------------------------------------------------ | :------------- |
-| **Jesús Ariza Pomares**       | Diseño Arquitectura, Docker, CI/CD, Documentación | XX h           |
-| **Jaime Caballero Hernández** | Frontend, Lógica Negocio, Integración, Tests      | XX h           |
-| **TOTAL**                     |                                                   | **XX h**       |
+| Integrante                    | Actividades                                                                                                                                                                                                                                                                                         | Horas (Aprox.) |
+| :---------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------- |
+| **Jesús Ariza Pomares**       | Diseño arquitectura base, control de tareas pendientes y ritmo del proyecto, implementación de 5 (caché, api externa, rate limit, circuit breaker y frontend) requisitos de microservicio avanzado y 1 requisito de aplicación avanzada (logs), frontend, documentación y presentación del proyecto | 45 h           |
+| **Jaime Caballero Hernández** | Implementación 1 un requisito de microservicio avanzado (throttling y feature toggles) y 3 requisitos de aplicación avanzada (autenticación, implementar limite de uso por plan y configuración del api gateway), CI/DQ, tests y contacto con peticiones de microservicios de la aplicación.        | 45 h           |
+| **TOTAL**                     |                                                                                                                                                                                                                                                                                                     | **90 h**       |
 
 ---
 
