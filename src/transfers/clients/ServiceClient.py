@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timezone
 import httpx
 from aiobreaker import CircuitBreaker
 from logging import getLogger
@@ -81,11 +82,28 @@ class ServiceClient:
             return await client.get(url, headers=headers)
 
     async def get_fraud_check(self, sender: str, receiver: str, quantity: float) -> httpx.Response:
-        url = f"{FRAUD_SERVICE_URL}/v1/fraud-alerts/check"
+        url = f"{FRAUD_SERVICE_URL}/v1/antifraud/transaction-check"
+        # Obtener fecha GMT de API externa
+        transaction_date_iso = None
+        gmt_time = await self.get_gmt_time()
+        if gmt_time:
+            # Convertir el string ISO a formato estándar ISO 8601 (como new Date().toISOString() en JS)
+            try:
+                dt = datetime.fromisoformat(gmt_time.replace('Z', '+00:00'))
+                # Formato ISO 8601 estándar: YYYY-MM-DDTHH:mm:ss.sssZ
+                transaction_date_iso = dt.strftime('%Y-%m-%dT%H:%M:%S.') + f'{dt.microsecond // 1000:03d}Z'
+            except:
+                dt = datetime.now(timezone.utc)
+                transaction_date_iso = dt.strftime('%Y-%m-%dT%H:%M:%S.') + f'{dt.microsecond // 1000:03d}Z'
+        else:
+            # Fallback a hora local UTC si falla la API
+            dt = datetime.now(timezone.utc)
+            transaction_date_iso = dt.strftime('%Y-%m-%dT%H:%M:%S.') + f'{dt.microsecond // 1000:03d}Z'
         body = {
             "origin": sender,
             "destination": receiver,
-            "amount": quantity
+            "amount": quantity,
+            "transactionDate": transaction_date_iso
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
             headers = {"Authorization": self.jwt} if self.jwt else None
