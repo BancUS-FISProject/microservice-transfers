@@ -1,11 +1,13 @@
 name: Automated tests
 
 on:
+  push:
+    branches: [ main, develop, fixes-and-refactor ]
   pull_request:
-    branches: [ main, master, dev ]
+    branches: [ main, develop, fixes-and-refactor ]
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKER_USER }}/microservice-accounts
+  IMAGE_NAME: ${{ secrets.DOCKER_USER }}/microservice-transfers
 
 jobs:
   api-test:
@@ -13,8 +15,28 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MONGO_CONNECTION_STRING: ${{ secrets.MONGO_CONNECTION_STRING }}
-      MONGO_DATABASE_NAME: ${{ secrets.MONGO_DATABASE_NAME }}
+      MONGO_CONNECTION_STRING: mongodb://localhost:27017/test_db
+      MONGO_DATABASE_NAME: test_db
+      ACCOUNTS_SERVICE_URL: http://localhost:8000
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      RATE_LIMIT: 2000
+      RATE_LIMIT_WINDOW: 60
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
 
     strategy:
       matrix:
@@ -36,7 +58,7 @@ jobs:
 
       - name: Init API in background
         run: |
-          uvicorn src.accounts.app:create_app --factory --host 0.0.0.0 --port 8000 &
+          uvicorn src.transfers.app:create_app --factory --host 0.0.0.0 --port 8000 &
 
           sleep 5
 
