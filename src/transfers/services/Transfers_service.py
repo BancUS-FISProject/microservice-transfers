@@ -14,7 +14,7 @@ logger = getLogger(__name__)
 from ..core import extensions
 
 class TransferService:
-    def __init__(self, redis_client=None, repository=None, client=None):
+    def __init__(self, redis_client=None, repository=None, client=None, jwt=None):
         if repository:
             self.repo = repository
         elif redis_client:
@@ -22,8 +22,9 @@ class TransferService:
         else:
             self.repo = TransfersRepository(extensions.db)
             
-        self.client = client or ServiceClient(settings.ACCOUNTS_SERVICE_URL)
+        self.client = client or ServiceClient(settings.ACCOUNTS_SERVICE_URL, jwt=jwt)
         self.redis_client = redis_client
+        self.jwt = jwt
 
     async def create_transaction(self, data: TransactionCreate) -> dict:
         if data.quantity <= 0:
@@ -78,9 +79,9 @@ class TransferService:
                     
                     # Verificar límites según suscripción
                     subscription_limits = {
-                        "Free": 5,
-                        "Premium": 10,
-                        "Gold": float('inf')  # Ilimitadas
+                        "basico": 5,
+                        "estudiante": 10,
+                        "pro": float('inf')  # Ilimitadas
                     }
                     
                     limit = subscription_limits.get(sender_subscription, 0)
@@ -93,6 +94,22 @@ class TransferService:
                 raise
             except Exception as e:
                 logger.warning(f"Error checking transaction limits: {e}")
+
+        # Verificar fraude antes de procesar la transacción (no bloqueante si el servicio no responde)
+        try:
+            fraud_resp = await self.client.get_fraud_check(data.sender, data.receiver, data.quantity)
+            logger.info(f"Fraud check response: {fraud_resp.status_code} - {fraud_resp.text}")
+            
+            if fraud_resp.status_code == 200:
+                fraud_data = fraud_resp.json()
+                if fraud_data.get("message") != "No risk detected":
+                    raise ValueError(f"Transaction rejected by fraud check: {fraud_data.get('message', 'Unknown reason')}")
+            else:
+                logger.warning(f"Fraud service returned non-200 status (non-blocking): {fraud_resp.status_code}")
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check fraud service (non-blocking): {e}")
 
         # Obtener fecha GMT de API externa
         gmt_time = await self.client.get_gmt_time()
@@ -153,6 +170,31 @@ class TransferService:
             return {"status": "failed", "reason": "connection_error", "transaction": inserted}
 
         updated = await self.repo.update_transaction_status(inserted["id"], "completed")
+        
+        # Notificar al servicio de notificaciones (no bloquea la transacción si falla)
+        try:
+            notification_payload = {
+                "type": "transaction",
+                "userId": data.sender,
+                "metadata": {
+                    "amount": data.quantity,
+                    "recipient": data.receiver
+                }
+            }
+            headers = {"Content-Type": "application/json"}
+            if self.jwt:
+                headers["Authorization"] = self.jwt
+            
+            async with httpx.AsyncClient(timeout=10.0) as notification_client:
+                notification_resp = await notification_client.post(
+                    "http://localhost:10000/v1/notifications/events",
+                    json=notification_payload,
+                    headers=headers
+                )
+                logger.info(f"Notification sent: {notification_resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Failed to send notification (non-blocking): {e}")
+        
         return {"status": "completed", "transaction": updated}
 
     async def get_transaction(self, id_str: str) -> dict | None:

@@ -1,6 +1,7 @@
 from quart import Blueprint, request, abort, jsonify, current_app
 from quart_schema import validate_request, validate_response, tag
 from typing import List
+import jwt
 
 from ...models.Transactions import TransactionCreate, TransactionView, ErrorResponse, StatusUpdateRequest
 from ...services.Transfers_service import TransferService
@@ -28,12 +29,25 @@ async def create_transaction(data: TransactionCreate):
     Realiza una transferencia de fondos desde la cuenta del remitente a la cuenta del receptor.
     Valida que el remitente tenga suficientes fondos antes de completar la transacción.
     """
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
+    _, token = auth_header.split(" ")
+    jwt_data = decode_jwt(token)
+    jwt_iban = jwt_data.get('iban')
+    
+    # Validar que el sender coincide con el iban del JWT
+    if jwt_iban != data.sender:
+        abort(403, description="Unauthorized access")
+    
     # Feature Toggle: Verificar si la creación de transacciones está habilitada
     feature_manager = get_feature_manager()
     if not await feature_manager.is_enabled(Feature.TRANSACTION_CREATE):
         abort(503, description="Transaction creation is temporarily disabled")
     
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     try:
         res = await service.create_transaction(data)
     except ValueError as e:
@@ -72,7 +86,19 @@ async def get_transactions_by_user(id: str):
     
     Retorna todas las transacciones donde el usuario aparece como remitente o receptor.
     """
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
+    _, token = auth_header.split(" ")
+    jwt_data = decode_jwt(token)
+    jwt_iban = jwt_data.get('iban')
+    
+    if jwt_iban != id:
+        abort(403, description="Unauthorized access")
+    
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     res = await service.get_transactions_by_user(id)
     if not res:
         abort(404, description="No transactions found for user")
@@ -88,7 +114,19 @@ async def get_transactions_sent(id: str):
     
     Retorna todas las transacciones donde el usuario es el remitente.
     """
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
+    _, token = auth_header.split(" ")
+    jwt_data = decode_jwt(token)
+    jwt_iban = jwt_data.get('iban')
+    
+    if jwt_iban != id:
+        abort(403, description="Unauthorized access")
+    
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     res = await service.get_transactions_sent_by_user(id)
     if not res:
         abort(404, description="No sent transactions found for user")
@@ -104,7 +142,19 @@ async def get_transactions_received(id: str):
     
     Retorna todas las transacciones donde el usuario es el receptor.
     """
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
+    _, token = auth_header.split(" ")
+    jwt_data = decode_jwt(token)
+    jwt_iban = jwt_data.get('iban')
+    
+    if jwt_iban != id:
+        abort(403, description="Unauthorized access")
+    
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     res = await service.get_transactions_received_by_user(id)
     if not res:
         abort(404, description="No received transactions found for user")
@@ -123,12 +173,17 @@ async def revert_transaction(id: str):
     Devuelve los fondos a la cuenta del remitente y actualiza el estado de la transacción a 'reverted'.
     Solo se pueden revertir transacciones que estén en estado 'completed'.
     """
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
     # Feature Toggle: Verificar si la reversión está habilitada
     feature_manager = get_feature_manager()
     if not await feature_manager.is_enabled(Feature.TRANSACTION_REVERT):
         abort(503, description="Transaction reversion is temporarily disabled")
     
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     res = await service.revert_transaction(id)
     if res is None:
         abort(404, description="Transaction not found")
@@ -150,12 +205,17 @@ async def delete_transaction(id: str):
     
     Marca una transacción como eliminada. Solo se pueden eliminar transacciones en estado 'pending' o 'failed'.
     """
+    # Validación JWT
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Falta el header Authorization"}), 401
+    
     # Feature Toggle: Verificar si la eliminación está habilitada
     feature_manager = get_feature_manager()
     if not await feature_manager.is_enabled(Feature.TRANSACTION_DELETE):
         abort(503, description="Transaction deletion is temporarily disabled")
     
-    service = TransferService(redis_client=getattr(current_app, "redis_client", None))
+    service = TransferService(redis_client=getattr(current_app, "redis_client", None), jwt=auth_header)
     res = await service.delete_transaction(id)
     if res is None:
         abort(404, description="Transaction not found")
@@ -190,3 +250,8 @@ async def put_status(id: str, data: StatusUpdateRequest):
         return res["transaction"], 200
     else:
         return {"error": res.get("reason"), "status": res.get("status")}, 400
+
+
+def decode_jwt(token):
+    """Decodifica el JWT sin verificar la firma (ya validada por el API Gateway)."""
+    return jwt.decode(token, options={"verify_signature": False})

@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.transfers.services.Transfers_service import TransferService
 from src.transfers.models.Transactions import TransactionCreate
+from conftest import get_auth_headers
 
 # Test data shared across tests
 test_data = {
@@ -40,7 +41,7 @@ async def test_create_transaction_success(client):
             }
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 202, "Create transaction should return 202"
         response_json = await response.get_json()
@@ -77,7 +78,7 @@ async def test_create_transaction_invalid_quantity_zero(client):
         "receiver": test_data["receiver_id"],
         "quantity": 0
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
@@ -91,7 +92,7 @@ async def test_create_transaction_invalid_quantity_negative(client):
         "receiver": test_data["receiver_id"],
         "quantity": -500
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
@@ -105,34 +106,14 @@ async def test_create_transaction_same_sender_receiver(client):
         "receiver": test_data["sender_id"],  # Same as sender
         "quantity": 100
     }
-    response = await client.post("/v1/transactions/", json=payload)
+    response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
     assert response.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_create_transaction_free_subscription_limit_reached(client):
+async def test_create_transaction_basico_subscription_limit_reached(client):
     """
-    Test POST /v1/transactions/ — Free subscription limit reached (5 transactions)
-    """
-    payload = {
-        "sender": test_data["sender_id"],
-        "receiver": test_data["receiver_id"],
-        "quantity": 100
-    }
-    
-    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
-        mock_create.side_effect = ValueError("Monthly transaction limit reached for Free subscription")
-        
-        response = await client.post("/v1/transactions/", json=payload)
-        assert response.status_code == 400
-        response_text = await response.get_data(as_text=True)
-        assert "limit" in response_text.lower()
-
-
-@pytest.mark.asyncio
-async def test_create_transaction_premium_subscription_limit_reached(client):
-    """
-    Test POST /v1/transactions/ — Premium subscription limit reached (10 transactions)
+    Test POST /v1/transactions/ — Basico subscription limit reached (5 transactions)
     """
     payload = {
         "sender": test_data["sender_id"],
@@ -141,18 +122,38 @@ async def test_create_transaction_premium_subscription_limit_reached(client):
     }
     
     with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
-        mock_create.side_effect = ValueError("Monthly transaction limit reached for Premium subscription")
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for basico subscription")
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
         response_text = await response.get_data(as_text=True)
         assert "limit" in response_text.lower()
 
 
 @pytest.mark.asyncio
-async def test_create_transaction_gold_subscription_unlimited(client):
+async def test_create_transaction_estudiante_subscription_limit_reached(client):
     """
-    Test POST /v1/transactions/ — Gold subscription has unlimited transactions
+    Test POST /v1/transactions/ — Estudiante subscription limit reached (10 transactions)
+    """
+    payload = {
+        "sender": test_data["sender_id"],
+        "receiver": test_data["receiver_id"],
+        "quantity": 100
+    }
+    
+    with patch.object(TransferService, 'create_transaction', new_callable=AsyncMock) as mock_create:
+        mock_create.side_effect = ValueError("Monthly transaction limit reached for estudiante subscription")
+        
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
+        assert response.status_code == 400
+        response_text = await response.get_data(as_text=True)
+        assert "limit" in response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_pro_subscription_unlimited(client):
+    """
+    Test POST /v1/transactions/ — Pro subscription has unlimited transactions
     """
     payload = {
         "sender": test_data["sender_id"],
@@ -173,7 +174,7 @@ async def test_create_transaction_gold_subscription_unlimited(client):
             }
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 202
 
 
@@ -195,7 +196,7 @@ async def test_create_transaction_insufficient_funds(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
         response_text = await response.get_data(as_text=True)
         assert "insufficient_funds" in response_text or "failed" in response_text
@@ -219,7 +220,7 @@ async def test_create_transaction_sender_not_found(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers("IBAN-NONEXISTENT"))
         assert response.status_code == 400
 
 
@@ -241,7 +242,7 @@ async def test_create_transaction_receiver_not_found(client):
             "transaction": {"id": "mock_id", "status": "failed"}
         }
         
-        response = await client.post("/v1/transactions/", json=payload)
+        response = await client.post("/v1/transactions/", json=payload, headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -306,7 +307,7 @@ async def test_get_transactions_by_user(client):
             {"id": "2", "sender": "other", "receiver": user_id, "quantity": 200, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}")
+        response = await client.get(f"/v1/transactions/user/{user_id}", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -322,7 +323,7 @@ async def test_get_transactions_by_user_not_found(client):
     with patch.object(TransferService, 'get_transactions_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -338,7 +339,7 @@ async def test_get_transactions_sent_by_user(client):
             {"id": "1", "sender": user_id, "receiver": "other", "quantity": 100, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}/sent")
+        response = await client.get(f"/v1/transactions/user/{user_id}/sent", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -353,7 +354,7 @@ async def test_get_transactions_sent_not_found(client):
     with patch.object(TransferService, 'get_transactions_sent_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER/sent")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER/sent", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -369,7 +370,7 @@ async def test_get_transactions_received_by_user(client):
             {"id": "1", "sender": "other", "receiver": user_id, "quantity": 200, "status": "completed"}
         ]
         
-        response = await client.get(f"/v1/transactions/user/{user_id}/received")
+        response = await client.get(f"/v1/transactions/user/{user_id}/received", headers=get_auth_headers(user_id))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -384,7 +385,7 @@ async def test_get_transactions_received_not_found(client):
     with patch.object(TransferService, 'get_transactions_received_by_user', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = []
         
-        response = await client.get("/v1/transactions/user/IBAN-NOUSER/received")
+        response = await client.get("/v1/transactions/user/IBAN-NOUSER/received", headers=get_auth_headers("IBAN-NOUSER"))
         assert response.status_code == 404
 
 
@@ -408,7 +409,7 @@ async def test_revert_transaction_success(client):
             }
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 200
         response_json = await response.get_json()
@@ -423,7 +424,7 @@ async def test_revert_transaction_not_found(client):
     with patch.object(TransferService, 'revert_transaction', new_callable=AsyncMock) as mock_revert:
         mock_revert.return_value = None
         
-        response = await client.patch("/v1/transactions/nonexistent_id")
+        response = await client.patch("/v1/transactions/nonexistent_id", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 404
 
 
@@ -441,7 +442,7 @@ async def test_revert_transaction_not_completed(client):
             "transaction": {"id": transaction_id, "status": "pending"}
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -459,7 +460,7 @@ async def test_revert_transaction_insufficient_funds(client):
             "transaction": {"id": transaction_id, "status": "completed"}
         }
         
-        response = await client.patch(f"/v1/transactions/{transaction_id}")
+        response = await client.patch(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 400
 
 
@@ -555,7 +556,7 @@ async def test_delete_transaction_success(client):
             }
         }
         
-        response = await client.delete(f"/v1/transactions/{transaction_id}")
+        response = await client.delete(f"/v1/transactions/{transaction_id}", headers=get_auth_headers(test_data["sender_id"]))
         
         assert response.status_code == 200
 
@@ -568,7 +569,7 @@ async def test_delete_transaction_not_found(client):
     with patch.object(TransferService, 'delete_transaction', new_callable=AsyncMock) as mock_delete:
         mock_delete.return_value = None
         
-        response = await client.delete("/v1/transactions/nonexistent_id")
+        response = await client.delete("/v1/transactions/nonexistent_id", headers=get_auth_headers(test_data["sender_id"]))
         assert response.status_code == 404
 
 
@@ -670,9 +671,9 @@ async def test_service_update_status_invalid_transitions():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_free():
+async def test_service_subscription_limit_validation_basico():
     """
-    IN-PROCESS: Test subscription limit validation for Free plan
+    IN-PROCESS: Test subscription limit validation for basico plan
     """
     mock_repo = MagicMock()
     mock_client = MagicMock()
@@ -682,7 +683,7 @@ async def test_service_subscription_limit_validation_free():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Free"
+        "subscription": "basico"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -690,13 +691,19 @@ async def test_service_subscription_limit_validation_free():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": "2025-12-01T10:00:00"},
-        {"status": "completed", "date": "2025-12-05T10:00:00"},
-        {"status": "completed", "date": "2025-12-10T10:00:00"},
-        {"status": "completed", "date": "2025-12-15T10:00:00"},
-        {"status": "completed", "date": "2025-12-20T10:00:00"}
+        {"status": "completed", "date": "2026-01-01T10:00:00"},
+        {"status": "completed", "date": "2026-01-02T10:00:00"},
+        {"status": "completed", "date": "2026-01-03T10:00:00"},
+        {"status": "completed", "date": "2026-01-04T10:00:00"},
+        {"status": "completed", "date": "2026-01-04T11:00:00"}
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check (aunque no debería llegar aquí por el límite)
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "No risk detected"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
     
@@ -711,9 +718,9 @@ async def test_service_subscription_limit_validation_free():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_premium():
+async def test_service_subscription_limit_validation_estudiante():
     """
-    IN-PROCESS: Test subscription limit validation for Premium plan
+    IN-PROCESS: Test subscription limit validation for estudiante plan
     """
     mock_repo = MagicMock()
     mock_client = MagicMock()
@@ -723,7 +730,7 @@ async def test_service_subscription_limit_validation_premium():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Premium"
+        "subscription": "estudiante"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -731,10 +738,16 @@ async def test_service_subscription_limit_validation_premium():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": f"2025-12-{i:02d}T10:00:00"} 
+        {"status": "completed", "date": f"2026-01-{i:02d}T10:00:00"} 
         for i in range(1, 11)
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check (aunque no debería llegar aquí por el límite)
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "No risk detected"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
     
     service = TransferService(repository=mock_repo, client=mock_client)
     
@@ -749,9 +762,9 @@ async def test_service_subscription_limit_validation_premium():
 
 
 @pytest.mark.asyncio
-async def test_service_subscription_limit_validation_gold_unlimited():
+async def test_service_subscription_limit_validation_pro_unlimited():
     """
-    IN-PROCESS: Test Gold subscription has unlimited transactions
+    IN-PROCESS: Test pro subscription has unlimited transactions
     """
     mock_repo = MagicMock()
     mock_repo.insert_transaction = AsyncMock(return_value={"id": "test_id", "status": "pending"})
@@ -764,7 +777,7 @@ async def test_service_subscription_limit_validation_gold_unlimited():
     account_response.status_code = 200
     account_response.json.return_value = {
         "balance": 10000,
-        "subscription": "Gold"
+        "subscription": "pro"
     }
     mock_client.get_account = AsyncMock(return_value=account_response)
     
@@ -772,10 +785,17 @@ async def test_service_subscription_limit_validation_gold_unlimited():
     transactions_response = MagicMock()
     transactions_response.status_code = 200
     transactions_response.json.return_value = [
-        {"status": "completed", "date": f"2025-12-{(i % 26) + 1:02d}T10:00:00"} 
+        {"status": "completed", "date": f"2026-01-{(i % 4) + 1:02d}T{i:02d}:00:00"} 
         for i in range(100)
     ]
     mock_client.get_sent_transactions = AsyncMock(return_value=transactions_response)
+    
+    # Mock fraud check - debe pasar para pro
+    fraud_response = MagicMock()
+    fraud_response.status_code = 200
+    fraud_response.json.return_value = {"message": "No risk detected"}
+    mock_client.get_fraud_check = AsyncMock(return_value=fraud_response)
+    
     mock_client.get_gmt_time = AsyncMock(return_value=None)
     mock_client.debit_account = AsyncMock(return_value=MagicMock(status_code=200))
     mock_client.credit_account = AsyncMock(return_value=MagicMock(status_code=200))
