@@ -48,7 +48,7 @@ El nivel de acabado del microservicio de transferencias/transacciones presentado
     *   **Mecanismo de Autenticación:** Implementado y funcional aprovechando nuestro API Gateway. [Ver justificación](#mecanismo-de-autenticación)
     *   **Frontend:** Realizado en el frontend genérico y final de la aplicación (además del que genera Swagger). [Ver justificación](#frontend)
     *   **Versionado API:** Accesible bajo `/v1/transactions`. [Ver justificación](#versionado-api)
-    *   **Despliegue en la nube:** (Falta incluir dirección pero para el día de defensa ya estará).
+    *   **Despliegue en la nube:** Se puede acceder al api-gateway a través de 68.221.252.242:10000, el despliegue de todos los microservicios se encuentra en https://nonlitigious-trudi-isochronally.ngrok-free.dev/ y previamente es necesario acceder a https://68.221.252.242:10000/v1/user-auth/health para evitar problemas con certificados web.
     *   **Documentación API:** OpenAPI + este archivo. [Ver justificación](#documentación-api)
     *   **Persistencia NoSQL (MongoDB):** Operaciones asíncronas con Motor. [Ver justificación](#persistencia-nosql)
     *   **Validación de Datos (Pydantic):** Validación estricta de payloads. [Ver justificación](#validación-de-datos)
