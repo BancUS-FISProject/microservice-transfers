@@ -1,3 +1,5 @@
+Este documento constituye el documento requerido por la asignatura para la evaluación del microservicio desarrollado por la pareja.
+
 # Documentación 
 
 | **Autores**                    | **Microservicios Implementados**           |
@@ -18,6 +20,7 @@
 7. [Cumplimiento de metodología The Twelve-Factor App](#7-cumplimiento-de-metodología-the-twelve-factor-app)
 8. [Análisis de Esfuerzos](#8-análisis-de-esfuerzos)
 9. [Uso de Inteligencia Artificial](#9-uso-de-inteligencia-artificial)
+10. [Enlaces a vídeo y presentación](#10-enlaces-a-vídeo-y-presentación)
 
 ---
 
@@ -48,7 +51,7 @@ El nivel de acabado del microservicio de transferencias/transacciones presentado
     *   **Mecanismo de Autenticación:** Implementado y funcional aprovechando nuestro API Gateway. [Ver justificación](#mecanismo-de-autenticación)
     *   **Frontend:** Realizado en el frontend genérico y final de la aplicación (además del que genera Swagger). [Ver justificación](#frontend)
     *   **Versionado API:** Accesible bajo `/v1/transactions`. [Ver justificación](#versionado-api)
-    *   **Despliegue en la nube:** Se puede acceder al api-gateway a través de 68.221.252.242:10000, el despliegue de todos los microservicios se encuentra en https://nonlitigious-trudi-isochronally.ngrok-free.dev/ y previamente es necesario acceder a https://68.221.252.242:10000/v1/user-auth/health para evitar problemas con certificados web.
+    *   **Despliegue en la nube:** Se puede acceder al api-gateway a través de 68.221.252.242:10000, el despliegue de todos los microservicios se encuentra en [https://nonlitigious-trudi-isochronally.ngrok-free.dev/](https://uncloseted-florine-brokenhearted.ngrok-free.dev/) y previamente es necesario acceder a https://68.221.252.242:10000/v1/user-auth/health para evitar problemas con certificados web. En caso de encontrar algún fallo con el despliegue público temporal de ngrok, revisar [https://github.com/BancUS-FISProject](https://github.com/BancUS-FISProject) en caso de posibles cambios.
     *   **Documentación API:** OpenAPI + este archivo. [Ver justificación](#documentación-api)
     *   **Persistencia NoSQL (MongoDB):** Operaciones asíncronas con Motor. [Ver justificación](#persistencia-nosql)
     *   **Validación de Datos (Pydantic):** Validación estricta de payloads. [Ver justificación](#validación-de-datos)
@@ -96,7 +99,7 @@ El proyecto se presenta con la arquitectura base y los microservicios totalmente
 
 ## 4. Consumo
 
-### 4.1. Customer Agreement
+### 4.1. Costumer Agreement
 
 **Semántica HTTP**
 *   `200 OK`: Operaciones de lectura y modificación síncronas exitosas.
@@ -701,3 +704,7 @@ Se ha utilizado la inteligencia artificial **Gemini 3 Pro** como herramienta de 
 4.  **Debugging y Corrección:** Detección de errores sutiles en el código y sugerencias de corrección.
 
 Todas las decisiones de diseño y lógica de negocio compleja son autoría del equipo.
+
+## 10. Enlaces a vídeo y presentación
+- [Vídeo](https://youtu.be/JC2Jn-UTlw4)
+- [Presentación](https://uses0-my.sharepoint.com/:p:/g/personal/pabmedmej_alum_us_es/IQCTMhJK8u5FTLBWQVT7859VAeFeG16GLDytJoq1X2QY9ks?e=KgAhsz)
